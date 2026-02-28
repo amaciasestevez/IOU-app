@@ -57,11 +57,10 @@
             });
 
             const data = await response.json();
-
             if (response.ok) {
-                alert("Welcome back, " + data.user.username + "!");
-        // This is where we will eventually redirect to the dashboard
-                window.location.href = '/index.html'; 
+                localStorage.setItem('token', data.token);
+                localStorage.setItem('username', data.username);
+                window.location.href = '/index.html';
             } else {
                 alert(data.message);
             }

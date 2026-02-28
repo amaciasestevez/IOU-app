@@ -7,12 +7,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
-
-    <!--
-        STUDENT NOTE: <script> inside <head> with tailwind.config
-        This is how you customize Tailwind's default settings.
-        We're adding our own fonts and colors so the app has a unique identity.
-    -->
     <script>
         tailwind.config = {
             theme: {
@@ -75,13 +69,11 @@
             animation-fill-mode: backwards; 
         }
 
-        /* Each card gets a slightly longer delay so they appear one after another */
         .delay-1 { animation-delay: 0.05s; }
         .delay-2 { animation-delay: 0.1s; }
         .delay-3 { animation-delay: 0.15s; }
         .delay-4 { animation-delay: 0.2s; }
 
-        /* Subtle grain texture overlay for the background - adds visual depth */
         body::before {
             content: '';
             position: fixed;
@@ -91,7 +83,6 @@
             z-index: 0;
         }
 
-        /* Makes select dropdowns look nicer */
         select {
             appearance: none;
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
@@ -102,34 +93,12 @@
     </style>
 </head>
 
-<!--
-    STUDENT NOTE: The overall page structure is:
-    
-    1. NAVBAR (top bar with logo + logout)
-    2. MAIN CONTENT (max-width container, centered)
-       ├── Header section (welcome message)
-       ├── Balances grid (cards showing who owes what)
-       ├── Add Transaction form (the main action)
-       ├── Transaction history (list of all IOUs)
-       └── Users section (list + add new user)
-    
-    This ordering puts the MOST IMPORTANT things first.
-    Users will mostly want to see balances and add transactions.
--->
 
 <body class="bg-stone-100 min-h-screen relative">
 
-    <!-- ==================== NAVBAR ==================== -->
-    <!-- 
-        STUDENT NOTE: The navbar uses:
-        - "sticky top-0 z-50" → stays at the top when you scroll
-        - "backdrop-blur-md bg-white/80" → semi-transparent with blur effect (glassmorphism)
-        - "border-b" → subtle line separating it from content
-    -->
     <nav class="sticky top-0 z-50 backdrop-blur-md bg-white/80 border-b border-stone-200">
         <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
             <div class="flex items-center gap-3">
-                <!-- Logo circle with dollar sign -->
                 <div class="w-9 h-9 rounded-full bg-brand-600 flex items-center justify-center">
                     <span class="text-white font-bold text-sm">$</span>
                 </div>
@@ -142,40 +111,21 @@
         </div>
     </nav>
 
-    <!-- ==================== MAIN CONTENT ==================== -->
     <main class="max-w-5xl mx-auto px-6 py-10 relative z-10">
 
-        <!-- Header -->
         <div class="mb-10 animate-fade-up delay-1">
-            <h1 class="font-display text-3xl text-stone-800 mb-1">Dashboard</h1>
-            <p class="text-stone-500">Track who owes what. Keep it simple, keep it honest.</p>
+            <h1 class="font-display text-3xl text-stone-800 mb-1">Welcome, <span id="display-username" class="font-display text-brand-600"></span></h1>
+            <p class="text-stone-500">Track who owes what.</p>
         </div>
 
-        <!-- ==================== BALANCES SECTION ==================== -->
-        <!--
-            STUDENT NOTE: This section is populated by JavaScript.
-            The "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4" means:
-            - On tiny screens: 2 columns
-            - On small screens (640px+): 3 columns  
-            - On medium screens (768px+): 4 columns
-            This is called RESPONSIVE DESIGN — the layout adapts to screen size.
-        -->
         <section class="mb-10 animate-fade-up delay-2">
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-sm font-semibold text-stone-400 uppercase tracking-wider">Net Balances</h2>
             </div>
             <div id="balance-list" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                <!-- JavaScript will fill this with balance cards -->
             </div>
         </section>
 
-        <!-- ==================== ADD TRANSACTION FORM ==================== -->
-        <!--
-            STUDENT NOTE: This card has:
-            - A green left border (border-l-4 border-brand-500) as an accent
-            - Grid layout inside for the form fields
-            - The button is full-width on mobile, auto-width on desktop
-        -->
         <section class="mb-10 animate-fade-up delay-3">
             <h2 class="text-sm font-semibold text-stone-400 uppercase tracking-wider mb-4">New Transaction</h2>
             <div class="bg-white rounded-xl shadow-sm border border-stone-200 p-6 border-l-4 border-l-brand-500">
@@ -215,37 +165,20 @@
             </div>
         </section>
 
-        <!-- ==================== TRANSACTION HISTORY ==================== -->
-        <!--
-            STUDENT NOTE: The transaction list starts empty.
-            JavaScript creates a row for each transaction.
-            If there are no transactions, we show an "empty state" message.
-            Good UX always tells the user what to expect, even when there's no data.
-        -->
         <section class="mb-10 animate-fade-up delay-4">
             <h2 class="text-sm font-semibold text-stone-400 uppercase tracking-wider mb-4">Transaction History</h2>
             <div class="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
                 <div id="transaction-list">
-                    <!-- JavaScript fills this -->
                 </div>
-                <!-- Empty state (shown when no transactions exist) -->
                 <div id="empty-state" class="py-12 text-center hidden">
                     <p class="text-stone-400 text-sm">No transactions yet. Add one above to get started.</p>
                 </div>
             </div>
         </section>
-
-        <!-- ==================== USERS SECTION ==================== -->
-        <!--
-            STUDENT NOTE: This section is at the bottom because 
-            adding users is less frequent than adding transactions.
-            Design principle: put the most-used features at the top.
-        -->
         <section class="animate-fade-up delay-4">
             <h2 class="text-sm font-semibold text-stone-400 uppercase tracking-wider mb-4">People</h2>
             <div class="bg-white rounded-xl shadow-sm border border-stone-200 p-6">
                 
-                <!-- Add user form (inline) -->
                 <div class="flex flex-col sm:flex-row gap-3 mb-6 pb-6 border-b border-stone-100">
                     <input type="text" id="username" placeholder="Username"
                            class="flex-1 px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
@@ -257,31 +190,24 @@
                     </button>
                 </div>
 
-                <!-- User chips -->
                 <div id="users-list" class="flex flex-wrap gap-2">
-                    <!-- JavaScript fills this with user "chips" -->
                 </div>
             </div>
         </section>
 
     </main>
 
-    <!-- ==================== JAVASCRIPT ==================== -->
-    <!--
-        STUDENT NOTE: This is the same logic you already had, but reorganized.
-        Key changes:
-        1. loadUsers() now creates "chips" (rounded pills) instead of plain <li> items
-        2. loadTransactions() creates styled rows instead of plain <li> items
-        3. updateBalances() creates color-coded cards (green = owed money, red = owes money)
-        4. Added input validation to createTransaction()
-        
-        YOUR EXISTING API ENDPOINTS HAVEN'T CHANGED AT ALL.
-        This is purely a frontend redesign — the server.js stays exactly the same.
-    -->
     <script>
-        // ===== LOAD USERS =====
-        // Fetches all users from your GET /users endpoint
-        // and populates: the user list, the borrower dropdown, and the lender dropdown
+
+        // check if a token exists in localStorage - if not, the user isnt logged in so send them back to login
+        const token = localStorage.getItem('token');
+        const username = localStorage.getItem('username');
+
+        if (!token) {
+            window.location.href = '/login.html';
+        }
+        document.getElementById('display-username').textContent = username;
+
         async function loadUsers() {
             const response = await fetch('/users');
             const users = await response.json();
@@ -290,19 +216,15 @@
             const payerSelect = document.getElementById('payer-id');
             const payeeSelect = document.getElementById('payee-id');
 
-            // Clear existing content before re-rendering
             userList.innerHTML = '';
             
-            // Keep the default "placeholder" option, remove the rest
             payerSelect.innerHTML = '<option value="">Who borrowed?</option>';
             payeeSelect.innerHTML = '<option value="">Who lent?</option>';
 
             users.forEach(user => {
-                // Create a styled "chip" for the users list
                 const chip = document.createElement('span');
                 chip.className = 'inline-flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 text-stone-600 text-sm rounded-full';
                 
-                // The little circle with the first letter of their name
                 const avatar = document.createElement('span');
                 avatar.className = 'w-5 h-5 rounded-full bg-brand-100 text-brand-700 text-xs font-semibold flex items-center justify-center';
                 avatar.textContent = user.username.charAt(0).toUpperCase();
@@ -311,7 +233,6 @@
                 chip.appendChild(document.createTextNode(user.username));
                 userList.appendChild(chip);
 
-                // Add to both dropdowns
                 const payerOption = document.createElement('option');
                 payerOption.value = user.id;
                 payerOption.textContent = user.username;
@@ -324,15 +245,12 @@
             });
         }
 
-        // ===== CREATE USER =====
-        // Posts to your POST /users endpoint
         async function createUser() {
             const usernameInput = document.getElementById('username');
             const emailInput = document.getElementById('email');
             const username = usernameInput.value.trim();
             const email = emailInput.value.trim();
 
-            // Basic validation — always validate before sending to the server
             if (!username || !email) {
                 alert('Please enter both a username and email.');
                 return;
@@ -344,14 +262,10 @@
                 body: JSON.stringify({ username, email })
             });
 
-            // Clear inputs and reload the list
             usernameInput.value = '';
             emailInput.value = '';
             loadUsers();
         }
-
-        // ===== LOAD TRANSACTIONS =====
-        // Fetches from your GET /transactions endpoint (which JOINs user names)
         async function loadTransactions() {
             const response = await fetch('/transactions');
             const transactions = await response.json();
@@ -360,7 +274,6 @@
 
             transactionList.innerHTML = '';
 
-            // Show/hide empty state
             if (transactions.length === 0) {
                 emptyState.classList.remove('hidden');
             } else {
@@ -368,11 +281,9 @@
             }
 
             transactions.forEach(txn => {
-                // Each transaction is a row in the list
                 const row = document.createElement('div');
                 row.className = 'flex items-center justify-between px-6 py-4 border-b border-stone-100 last:border-b-0 hover:bg-stone-50 transition-colors duration-150';
 
-                // Left side: who owes whom and for what
                 const info = document.createElement('div');
                 info.className = 'flex-1 min-w-0';
                 
@@ -387,7 +298,6 @@
                 info.appendChild(names);
                 info.appendChild(desc);
 
-                // Right side: amount + delete button
                 const actions = document.createElement('div');
                 actions.className = 'flex items-center gap-4 ml-4 flex-shrink-0';
 
@@ -400,7 +310,6 @@
                 deleteBtn.textContent = '✕';
                 deleteBtn.title = 'Delete transaction';
                 deleteBtn.onclick = async function () {
-                    // Calls your DELETE /transactions/:id endpoint
                     await fetch(`/transactions/${txn.id}`, { method: 'DELETE' });
                     loadTransactions();
                 };
@@ -413,12 +322,9 @@
                 transactionList.appendChild(row);
             });
 
-            // Recalculate balances whenever transactions change
             updateBalances(transactions);
         }
 
-        // ===== CREATE TRANSACTION =====
-        // Posts to your POST /transactions endpoint
         async function createTransaction() {
             const payerIdInput = document.getElementById('payer-id');
             const payeeIdInput = document.getElementById('payee-id');
@@ -429,8 +335,6 @@
             const lender_id = payeeIdInput.value;
             const amount = amountInput.value;
             const description = descriptionInput.value;
-
-            // Validation: make sure all fields are filled
             if (!borrower_id || !lender_id || !amount || !description) {
                 alert('Please fill in all fields.');
                 return;
@@ -456,10 +360,6 @@
             loadTransactions();
         }
 
-        // ===== UPDATE BALANCES =====
-        // This is a CLIENT-SIDE calculation.
-        // It loops through all transactions and calculates each person's net balance.
-        // Positive = they're owed money (good). Negative = they owe money (bad).
         function updateBalances(transactions) {
             const scoreboard = {};
 
@@ -518,8 +418,6 @@
             }
         }
 
-        // ===== INITIALIZE =====
-        // Load everything when the page first opens
         loadUsers();
         loadTransactions();
     </script>

@@ -1,13 +1,17 @@
+// importing core libraries - dotenv loads environment variables, express handles the backend, db connects to our database layer, bcrypt handles password hashing
+import 'dotenv/config';
 import express, { Request, Response } from 'express';
 import db from './db';
 import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 
+//creates the express server, tells it to read incoming JSON data from requests, and serve HTML files from the public folder
 const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
-// --- Types ---
-
+// Types
+//creates the blueprint for what a user object needs to have throughout the app
 interface User {
   id: number;
   username: string;
@@ -15,6 +19,7 @@ interface User {
   password: string;
 }
 
+//creates the blueprint for what a transaction needs to have - borrower and lender name are optional and could be null
 interface Transaction {
   id: number;
   lender_id: number;
@@ -26,17 +31,19 @@ interface Transaction {
   lender_name?: string;
 }
 
+//creates the blueprint for the debt result - sum could be null if the user has no debt
 interface DebtResult {
   sum: string | null;
 }
 
 // --- User Routes ---
-
+// GET route - grabs all users from the database, more of an admin utility route
 app.get('/users', async (_req: Request, res: Response) => {
   const result = await db.query<User>('SELECT * FROM users');
   res.json(result.rows);
 });
 
+//POST route - takes username and email from the request and inserts them into the database - $1 $2 $3 are placeholders that get filled in order from the array below to prevent SQL injection
 app.post('/users', async (req: Request, res: Response) => {
   const { username, email }: Pick<User, 'username' | 'email'> = req.body;
   const text = 'INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING *';
@@ -44,6 +51,7 @@ app.post('/users', async (req: Request, res: Response) => {
   res.json(result.rows[0]);
 });
 
+//GET route - retrieves everything a specific user currently owes that hasnt been paid back yet and returns the total - :id in the url determines which user we're looking up
 app.get('/users/:id/debt', async (req: Request, res: Response) => {
   const { id } = req.params;
   const text = 'SELECT SUM(amount) FROM transactions WHERE borrower_id = $1 AND is_paid = false';
@@ -51,19 +59,21 @@ app.get('/users/:id/debt', async (req: Request, res: Response) => {
   res.json(result.rows[0]);
 });
 
+// POST route - handles new user registration, hashes the password with bcrypt before saving so plain text password never touches the database
 app.post('/register', async (req: Request, res: Response) => {
   const { username, email, password }: Pick<User, 'username' | 'email' | 'password'> = req.body;
 
-  // 1. Hash the password before saving it - 10 is the number of salt rounds
+  //Hash the password before saving it
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  // 2. Save the hashed password, NOT the original
+  // Save the hashed password
   const text = 'INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING id, username, email';
   const result = await db.query<Omit<User, 'password'>>(text, [username, email, hashedPassword]);
 
   res.json({ message: 'Account created successfully!', user: result.rows[0] });
 });
 
+//POST route - handles user login, checks for empty fields, looks up user by username only, then uses bcrypt to compare the typed password against the stored hash
 app.post('/login', async (req: Request, res: Response) => {
   const { username, password }: Pick<User, 'username' | 'password'> = req.body;
 
@@ -72,8 +82,7 @@ app.post('/login', async (req: Request, res: Response) => {
     return;
   }
 
-  // 1. Find the user by username only - we can't search by password anymore
-  //    because the stored one is hashed and we don't know what it is yet
+  //Find the user by username only - we can't search by password anymore because the stored one is hashed and we don't know what it is yet
   const text = 'SELECT * FROM users WHERE username = $1';
   const result = await db.query<User>(text, [username]);
 
@@ -82,19 +91,24 @@ app.post('/login', async (req: Request, res: Response) => {
     return;
   }
 
-  // 2. We found the user - now compare what they typed against the stored hash
+  // now compare what they typed against the stored hash
   const user = result.rows[0];
   const passwordMatch = await bcrypt.compare(password, user.password);
 
   if (passwordMatch) {
-    res.json({ message: 'Login successful!', user: user });
-  } else {
+    const token = jwt.sign(
+        { id: user.id, username: user.username }, // payload or data were putting into the token specifically not putting password because insecure.
+        process.env.JWT_SECRET as string, // key from .env file and we are saying it is a string
+        { expiresIn: '24h' }
+    );
+    res.json({ message: 'Login successful!', token: token, username: user.username });
+} else {
     res.status(401).json({ message: 'Invalid username or password' });
   }
 });
 
-// --- Transaction Routes ---
-
+// Transaction Routes
+// GET route - grabs all transactions and uses JOIN to combine the users and transactions tables so we get readable usernames instead of just ids
 app.get('/transactions', async (_req: Request, res: Response) => {
   const query = `
     SELECT t.*, u1.username AS borrower_name, u2.username AS lender_name
@@ -106,6 +120,7 @@ app.get('/transactions', async (_req: Request, res: Response) => {
   res.json(result.rows);
 });
 
+// POST route - takes lender, borrower, amount and description from the request and inserts a new transaction into the database
 app.post('/transactions', async (req: Request, res: Response) => {
   const { lender_id, borrower_id, amount, description }: Omit<Transaction, 'id' | 'is_paid'> = req.body;
   const text = 'INSERT INTO transactions (lender_id, borrower_id, amount, description) VALUES ($1, $2, $3, $4) RETURNING *';
@@ -113,6 +128,7 @@ app.post('/transactions', async (req: Request, res: Response) => {
   res.json(result.rows[0]);
 });
 
+// PUT route - updates a specific transaction to paid using the id in the url
 app.put('/transactions/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
   const text = 'UPDATE transactions SET is_paid = true WHERE id = $1 RETURNING *';
@@ -126,9 +142,10 @@ app.delete('/transactions/:id', async (req: Request, res: Response) => {
   res.json({ message: 'Deleted successfully' });
 });
 
-// --- Start Server ---
+// Start Server
 
 const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
