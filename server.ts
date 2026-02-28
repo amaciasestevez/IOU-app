@@ -36,6 +36,26 @@ interface DebtResult {
   sum: string | null;
 }
 
+// middleware function that checks every protected route for a valid JWT token before allowing access
+function authenticateToken(req: Request, res: Response, next: Function): void {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+      res.status(401).json({ message: 'Access denied - no token provided' });
+      return;
+  }
+
+  try {
+    // key  line - checks if the token is valid and was signed with secret key
+      const decoded = jwt.verify(token, process.env.JWT_SECRET as string);
+      (req as any).user = decoded;
+      next();
+  } catch {
+      res.status(403).json({ message: 'Access denied - invalid token' });
+  }
+}
+
 // --- User Routes ---
 // GET route - grabs all users from the database, more of an admin utility route
 app.get('/users', async (_req: Request, res: Response) => {
@@ -52,7 +72,7 @@ app.post('/users', async (req: Request, res: Response) => {
 });
 
 //GET route - retrieves everything a specific user currently owes that hasnt been paid back yet and returns the total - :id in the url determines which user we're looking up
-app.get('/users/:id/debt', async (req: Request, res: Response) => {
+app.get('/users/:id/debt',authenticateToken, async (req: Request, res: Response) => {
   const { id } = req.params;
   const text = 'SELECT SUM(amount) FROM transactions WHERE borrower_id = $1 AND is_paid = false';
   const result = await db.query<DebtResult>(text, [id]);
@@ -109,7 +129,7 @@ app.post('/login', async (req: Request, res: Response) => {
 
 // Transaction Routes
 // GET route - grabs all transactions and uses JOIN to combine the users and transactions tables so we get readable usernames instead of just ids
-app.get('/transactions', async (_req: Request, res: Response) => {
+app.get('/transactions', authenticateToken, async (_req: Request, res: Response) => {
   const query = `
     SELECT t.*, u1.username AS borrower_name, u2.username AS lender_name
     FROM transactions t
@@ -121,7 +141,7 @@ app.get('/transactions', async (_req: Request, res: Response) => {
 });
 
 // POST route - takes lender, borrower, amount and description from the request and inserts a new transaction into the database
-app.post('/transactions', async (req: Request, res: Response) => {
+app.post('/transactions',authenticateToken, async (req: Request, res: Response) => {
   const { lender_id, borrower_id, amount, description }: Omit<Transaction, 'id' | 'is_paid'> = req.body;
   const text = 'INSERT INTO transactions (lender_id, borrower_id, amount, description) VALUES ($1, $2, $3, $4) RETURNING *';
   const result = await db.query<Transaction>(text, [lender_id, borrower_id, amount, description]);
@@ -129,14 +149,14 @@ app.post('/transactions', async (req: Request, res: Response) => {
 });
 
 // PUT route - updates a specific transaction to paid using the id in the url
-app.put('/transactions/:id', async (req: Request, res: Response) => {
+app.put('/transactions/:id',authenticateToken, async (req: Request, res: Response) => {
   const { id } = req.params;
   const text = 'UPDATE transactions SET is_paid = true WHERE id = $1 RETURNING *';
   const result = await db.query<Transaction>(text, [id]);
   res.json(result.rows);
 });
 
-app.delete('/transactions/:id', async (req: Request, res: Response) => {
+app.delete('/transactions/:id',authenticateToken, async (req: Request, res: Response) => {
   const { id } = req.params;
   await db.query('DELETE FROM transactions WHERE id = $1', [id]);
   res.json({ message: 'Deleted successfully' });
