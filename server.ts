@@ -36,6 +36,17 @@ interface DebtResult {
   sum: string | null;
 }
 
+// blueprint for what a contact object needs to have - email and phone are optional individually but the database enforces at least one must exist
+interface Contact {
+  id: number;
+  owner_id: number;
+  name: string;
+  email?: string;
+  phone?: string;
+  linked_user_id?: number;
+  created_at?: string;
+}
+
 // middleware function that checks every protected route for a valid JWT token before allowing access
 function authenticateToken(req: Request, res: Response, next: Function): void {
   const authHeader = req.headers['authorization'];
@@ -126,6 +137,43 @@ app.post('/login', async (req: Request, res: Response) => {
     res.status(401).json({ message: 'Invalid username or password' });
   }
 });
+
+// Contact Route
+// GET route - retrieves all contacts belonging to the logged in user only
+app.get('/contacts', authenticateToken, async (req: Request, res: Response) => {
+  const owner_id = (req as any).user.id;
+  const result = await db.query<Contact>('SELECT * FROM contacts WHERE owner_id = $1 ORDER BY name ASC', [owner_id]);
+  res.json(result.rows);
+});
+
+// POST route - creates a new contact for the logged in user
+app.post('/contacts', authenticateToken, async (req: Request, res: Response) => {
+  const owner_id = (req as any).user.id;
+  const { name, email, phone }: Pick<Contact, 'name' | 'email' | 'phone'> = req.body;
+
+  if (!name) {
+    res.status(400).json({ message: 'Name is required' });
+    return;
+  }
+
+  if (!email && !phone) {
+    res.status(400).json({ message: 'Either email or phone is required' });
+    return;
+  }
+
+  const text = 'INSERT INTO contacts (owner_id, name, email, phone) VALUES ($1, $2, $3, $4) RETURNING *';
+  const result = await db.query<Contact>(text, [owner_id, name, email || null, phone || null]);
+  res.json(result.rows[0]);
+});
+
+// DELETE route - deletes a specific contact belonging to the logged in user
+app.delete('/contacts/:id', authenticateToken, async (req: Request, res: Response) => {
+  const owner_id = (req as any).user.id;
+  const { id } = req.params;
+  await db.query('DELETE FROM contacts WHERE id = $1 AND owner_id = $2', [id, owner_id]);
+  res.json({ message: 'Contact deleted successfully' });
+});
+
 
 // Transaction Routes
 // GET route - grabs all transactions and uses JOIN to combine the users and transactions tables so we get readable usernames instead of just ids
