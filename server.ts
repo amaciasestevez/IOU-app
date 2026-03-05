@@ -22,13 +22,20 @@ interface User {
 //creates the blueprint for what a transaction needs to have - borrower and lender name are optional and could be null
 interface Transaction {
   id: number;
-  lender_id: number;
-  borrower_id: number;
+  user_id: number;
+  contact_id: number;
+  direction: 'i_lent' | 'i_borrowed';
   amount: number;
   description: string;
   is_paid: boolean;
-  borrower_name?: string;
-  lender_name?: string;
+  contact_name?: string;
+}
+
+interface Payment {
+  id: number;
+  transaction_id: number;
+  amount: number;
+  paid_at: string;
 }
 
 //creates the blueprint for the debt result - sum could be null if the user has no debt
@@ -176,38 +183,81 @@ app.delete('/contacts/:id', authenticateToken, async (req: Request, res: Respons
 
 
 // Transaction Routes
-// GET route - grabs all transactions and uses JOIN to combine the users and transactions tables so we get readable usernames instead of just ids
-app.get('/transactions', authenticateToken, async (_req: Request, res: Response) => {
+// GET route - retrieves all transactions for the logged in user, joins with contacts to get the contact's name
+app.get('/transactions', authenticateToken, async (req: Request, res: Response) => {
+  const user_id = (req as any).user.id;
   const query = `
-    SELECT t.*, u1.username AS borrower_name, u2.username AS lender_name
+    SELECT t.*, c.name AS contact_name
     FROM transactions t
-    JOIN users u1 ON t.borrower_id = u1.id
-    JOIN users u2 ON t.lender_id = u2.id;
+    JOIN contacts c ON t.contact_id = c.id
+    WHERE t.user_id = $1
+    ORDER BY t.date DESC
   `;
-  const result = await db.query<Transaction>(query);
+  const result = await db.query<Transaction>(query, [user_id]);
   res.json(result.rows);
 });
 
-// POST route - takes lender, borrower, amount and description from the request and inserts a new transaction into the database
-app.post('/transactions',authenticateToken, async (req: Request, res: Response) => {
-  const { lender_id, borrower_id, amount, description }: Omit<Transaction, 'id' | 'is_paid'> = req.body;
-  const text = 'INSERT INTO transactions (lender_id, borrower_id, amount, description) VALUES ($1, $2, $3, $4) RETURNING *';
-  const result = await db.query<Transaction>(text, [lender_id, borrower_id, amount, description]);
+// POST route - creates a new transaction for the logged in user
+app.post('/transactions', authenticateToken, async (req: Request, res: Response) => {
+  const user_id = (req as any).user.id;
+  const { contact_id, direction, amount, description }: Pick<Transaction, 'contact_id' | 'direction' | 'amount' | 'description'> = req.body;
+
+  if (!contact_id || !direction || !amount) {
+    res.status(400).json({ message: 'Contact, direction and amount are required' });
+    return;
+  }
+
+  const text = 'INSERT INTO transactions (user_id, contact_id, direction, amount, description) VALUES ($1, $2, $3, $4, $5) RETURNING *';
+  const result = await db.query<Transaction>(text, [user_id, contact_id, direction, amount, description]);
   res.json(result.rows[0]);
 });
 
-// PUT route - updates a specific transaction to paid using the id in the url
-app.put('/transactions/:id',authenticateToken, async (req: Request, res: Response) => {
+// PUT route - marks a specific transaction as paid
+app.put('/transactions/:id', authenticateToken, async (req: Request, res: Response) => {
+  const user_id = (req as any).user.id;
   const { id } = req.params;
-  const text = 'UPDATE transactions SET is_paid = true WHERE id = $1 RETURNING *';
-  const result = await db.query<Transaction>(text, [id]);
+  const text = 'UPDATE transactions SET is_paid = true WHERE id = $1 AND user_id = $2 RETURNING *';
+  const result = await db.query<Transaction>(text, [id, user_id]);
   res.json(result.rows);
 });
 
-app.delete('/transactions/:id',authenticateToken, async (req: Request, res: Response) => {
+// DELETE route - deletes a specific transaction belonging to the logged in user
+app.delete('/transactions/:id', authenticateToken, async (req: Request, res: Response) => {
+  const user_id = (req as any).user.id;
   const { id } = req.params;
-  await db.query('DELETE FROM transactions WHERE id = $1', [id]);
+  await db.query('DELETE FROM transactions WHERE id = $1 AND user_id = $2', [id, user_id]);
   res.json({ message: 'Deleted successfully' });
+});
+
+// GET route - fetches all payments for a specific transaction
+// payments belonging to transaction with this id
+app.get('/transactions/:id/payments', authenticateToken, async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const result = await db.query<Payment>('SELECT * FROM payments WHERE transaction_id = $1 ORDER BY paid_at ASC', [id]);
+  res.json(result.rows);
+});
+
+// POST route - records a new payment toward a specific transaction
+app.post('/transactions/:id/payments', authenticateToken, async (req: Request, res: Response) => {
+  const user_id = (req as any).user.id;
+  const { id } = req.params;
+  const { amount } = req.body;
+
+  if (!amount || amount <= 0) {
+    res.status(400).json({ message: 'A valid amount is required' });
+    return;
+  }
+
+  // verify this transaction belongs to the logged in user before allowing payment
+  const txnCheck = await db.query<Transaction>('SELECT * FROM transactions WHERE id = $1 AND user_id = $2', [id, user_id]);
+  if (txnCheck.rows.length === 0) {
+    res.status(403).json({ message: 'Transaction not found' });
+    return;
+  }
+
+  const text = 'INSERT INTO payments (transaction_id, amount) VALUES ($1, $2) RETURNING *';
+  const result = await db.query<Payment>(text, [id, amount]);
+  res.json(result.rows[0]);
 });
 
 // Start Server

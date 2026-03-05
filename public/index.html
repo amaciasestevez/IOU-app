@@ -41,34 +41,13 @@
     </script>
 
     <style>
-        /* 
-            STUDENT NOTE: Even though we use Tailwind for most styling,
-            sometimes you need custom CSS for things Tailwind can't do easily.
-            
-            - The @keyframes block defines a custom animation called "fadeUp"
-            - We apply it to cards so they smoothly appear when the page loads
-            - The "animation-fill-mode: backwards" makes elements invisible 
-              BEFORE their animation starts (important for staggered delays)
-        */
-        
         * { font-family: 'DM Sans', sans-serif; }
 
         @keyframes fadeUp {
-            from { 
-                opacity: 0; 
-                transform: translateY(16px); 
-            }
-            to { 
-                opacity: 1; 
-                transform: translateY(0); 
-            }
+            from { opacity: 0; transform: translateY(16px); }
+            to   { opacity: 1; transform: translateY(0); }
         }
-
-        .animate-fade-up {
-            animation: fadeUp 0.5s ease-out;
-            animation-fill-mode: backwards; 
-        }
-
+        .animate-fade-up { animation: fadeUp 0.5s ease-out; animation-fill-mode: backwards; }
         .delay-1 { animation-delay: 0.05s; }
         .delay-2 { animation-delay: 0.1s; }
         .delay-3 { animation-delay: 0.15s; }
@@ -90,12 +69,26 @@
             background-position: right 12px center;
             padding-right: 32px;
         }
+
+        /* Modal overlay */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.active {
+            display: flex;
+        }
     </style>
 </head>
 
-
 <body class="bg-stone-100 min-h-screen relative">
 
+    <!-- Navbar -->
     <nav class="sticky top-0 z-50 backdrop-blur-md bg-white/80 border-b border-stone-200">
         <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
             <div class="flex items-center gap-3">
@@ -104,93 +97,170 @@
                 </div>
                 <span class="font-display text-xl text-stone-800">IOU</span>
             </div>
-            <a onclick="logout()" 
-                class="text-sm text-stone-500 hover:text-stone-800 transition-colors duration-200 cursor-pointer">
+            <a onclick="logout()" class="text-sm text-stone-500 hover:text-stone-800 transition-colors duration-200 cursor-pointer">
                 Log Out
             </a>
         </div>
     </nav>
 
+    <!-- Add Contact Modal -->
+    <div id="contact-modal" class="modal-overlay">
+        <div class="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md mx-4">
+            <h2 class="font-display text-2xl text-stone-800 mb-1">Add Contact</h2>
+            <p class="text-stone-500 text-sm mb-6">Add someone you want to track debts with.</p>
+
+            <div class="flex flex-col gap-4">
+                <div>
+                    <label class="block text-xs font-medium text-stone-500 mb-1.5">Name <span class="text-red-400">*</span></label>
+                    <input type="text" id="contact-name" placeholder="Daniel"
+                           class="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-stone-500 mb-1.5">Email</label>
+                    <input type="email" id="contact-email" placeholder="daniel@example.com"
+                           class="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-stone-500 mb-1.5">Phone</label>
+                    <input type="tel" id="contact-phone" placeholder="(555) 000-0000"
+                           class="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
+                </div>
+                <p class="text-xs text-stone-400">Either email or phone is required.</p>
+            </div>
+
+            <div class="flex gap-3 mt-6">
+                <button onclick="closeContactModal()"
+                        class="flex-1 px-4 py-2.5 bg-stone-100 text-stone-700 text-sm font-semibold rounded-lg hover:bg-stone-200 transition">
+                    Cancel
+                </button>
+                <button onclick="createContact()"
+                        class="flex-1 px-4 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition">
+                    Add Contact
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- I Paid Modal -->
+    <div id="lent-modal" class="modal-overlay">
+        <div class="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md mx-4">
+            <h2 class="font-display text-2xl text-stone-800 mb-1">I Paid</h2>
+            <p class="text-stone-500 text-sm mb-6">Who did you pay for?</p>
+            <div class="flex flex-col gap-4">
+                <div>
+                    <label class="block text-xs font-medium text-stone-500 mb-1.5">Contact <span class="text-red-400">*</span></label>
+                    <select id="lent-contact" class="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
+                        <option value="">Select a contact</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-stone-500 mb-1.5">Amount <span class="text-red-400">*</span></label>
+                    <div class="relative">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">$</span>
+                        <input type="number" id="lent-amount" placeholder="0.00" min="0" step="0.01" class="w-full pl-7 pr-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-stone-500 mb-1.5">Description</label>
+                    <input type="text" id="lent-description" placeholder="What for?" class="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
+                </div>
+            </div>
+            <div class="flex gap-3 mt-6">
+                <button onclick="closeTransactionModal()" class="flex-1 px-4 py-2.5 bg-stone-100 text-stone-700 text-sm font-semibold rounded-lg hover:bg-stone-200 transition">Cancel</button>
+                <button onclick="createTransaction('i_lent')" class="flex-1 px-4 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition">Add Transaction</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- I Borrowed Modal -->
+    <div id="borrowed-modal" class="modal-overlay">
+        <div class="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md mx-4">
+            <h2 class="font-display text-2xl text-stone-800 mb-1">I Borrowed</h2>
+            <p class="text-stone-500 text-sm mb-6">Who paid for you?</p>
+            <div class="flex flex-col gap-4">
+                <div>
+                    <label class="block text-xs font-medium text-stone-500 mb-1.5">Contact <span class="text-red-400">*</span></label>
+                    <select id="borrowed-contact" class="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
+                        <option value="">Select a contact</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-stone-500 mb-1.5">Amount <span class="text-red-400">*</span></label>
+                    <div class="relative">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">$</span>
+                        <input type="number" id="borrowed-amount" placeholder="0.00" min="0" step="0.01" class="w-full pl-7 pr-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-stone-500 mb-1.5">Description</label>
+                    <input type="text" id="borrowed-description" placeholder="What for?" class="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
+                </div>
+            </div>
+            <div class="flex gap-3 mt-6">
+                <button onclick="closeTransactionModal()" class="flex-1 px-4 py-2.5 bg-stone-100 text-stone-700 text-sm font-semibold rounded-lg hover:bg-stone-200 transition">Cancel</button>
+                <button onclick="createTransaction('i_borrowed')" class="flex-1 px-4 py-2.5 bg-red-500 text-white text-sm font-semibold rounded-lg hover:bg-red-600 transition">Add Transaction</button>
+            </div>
+        </div>
+    </div>
+
     <main class="max-w-5xl mx-auto px-6 py-10 relative z-10">
 
+        <!-- Header -->
         <div class="mb-10 animate-fade-up delay-1">
             <h1 class="font-display text-3xl text-stone-800 mb-1">Welcome, <span id="display-username" class="font-display text-brand-600"></span></h1>
             <p class="text-stone-500">Track who owes what.</p>
         </div>
 
+        <!-- Net Balances -->
         <section class="mb-10 animate-fade-up delay-2">
-            <div class="flex items-center justify-between mb-4">
-                <h2 class="text-sm font-semibold text-stone-400 uppercase tracking-wider">Net Balances</h2>
-            </div>
+            <h2 class="text-sm font-semibold text-stone-400 uppercase tracking-wider mb-4">Net Balances</h2>
             <div id="balance-list" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             </div>
         </section>
 
+        <!-- Contacts -->
+        <section class="mb-10 animate-fade-up delay-2">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-sm font-semibold text-stone-400 uppercase tracking-wider">Contacts</h2>
+                <button onclick="openContactModal()"
+                        class="px-4 py-2 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 transition">
+                    + Add Contact
+                </button>
+            </div>
+            <div id="contacts-list" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                <p class="text-stone-400 text-sm col-span-full">No contacts yet. Add one to get started.</p>
+            </div>
+        </section>
+
+        <!-- New Transaction -->
         <section class="mb-10 animate-fade-up delay-3">
             <h2 class="text-sm font-semibold text-stone-400 uppercase tracking-wider mb-4">New Transaction</h2>
-            <div class="bg-white rounded-xl shadow-sm border border-stone-200 p-6 border-l-4 border-l-brand-500">
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                    <div>
-                        <label class="block text-xs font-medium text-stone-500 mb-1.5">Borrower</label>
-                        <select id="payer-id" 
-                                class="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
-                            <option value="">Who borrowed?</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-stone-500 mb-1.5">Lender</label>
-                        <select id="payee-id" 
-                                class="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
-                            <option value="">Who lent?</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-stone-500 mb-1.5">Amount</label>
-                        <div class="relative">
-                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">$</span>
-                            <input type="number" id="amount" placeholder="0.00" min="0" step="0.01"
-                                   class="w-full pl-7 pr-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-stone-500 mb-1.5">Description</label>
-                        <input type="text" id="description" placeholder="What for?"
-                               class="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
-                    </div>
-                </div>
-                <button onclick="createTransaction()" 
-                        class="w-full sm:w-auto px-6 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 active:scale-[0.98] transition-all duration-150">
-                    + Add Debt
+            <div class="grid grid-cols-2 gap-4">
+                <!-- I Paid button -->
+                <button onclick="openTransactionModal('i_lent')"
+                        class="bg-white border-2 border-brand-500 rounded-xl p-6 flex flex-col items-center gap-2 hover:bg-brand-50 active:scale-[0.98] transition-all duration-150 group">
+                    <span class="text-2xl">💸</span>
+                    <span class="font-semibold text-stone-800 group-hover:text-brand-700 transition-colors">I Paid</span>
+                    <span class="text-xs text-stone-400">Someone owes you</span>
+                </button>
+                <!-- I Borrowed button -->
+                <button onclick="openTransactionModal('i_borrowed')"
+                        class="bg-white border-2 border-red-300 rounded-xl p-6 flex flex-col items-center gap-2 hover:bg-red-50 active:scale-[0.98] transition-all duration-150 group">
+                    <span class="text-2xl">🤲</span>
+                    <span class="font-semibold text-stone-800 group-hover:text-red-600 transition-colors">I Borrowed</span>
+                    <span class="text-xs text-stone-400">You owe someone</span>
                 </button>
             </div>
         </section>
 
+        <!-- Transaction History -->
         <section class="mb-10 animate-fade-up delay-4">
             <h2 class="text-sm font-semibold text-stone-400 uppercase tracking-wider mb-4">Transaction History</h2>
             <div class="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
-                <div id="transaction-list">
-                </div>
+                <div id="transaction-list"></div>
                 <div id="empty-state" class="py-12 text-center hidden">
                     <p class="text-stone-400 text-sm">No transactions yet. Add one above to get started.</p>
-                </div>
-            </div>
-        </section>
-        <section class="animate-fade-up delay-4">
-            <h2 class="text-sm font-semibold text-stone-400 uppercase tracking-wider mb-4">People</h2>
-            <div class="bg-white rounded-xl shadow-sm border border-stone-200 p-6">
-                
-                <div class="flex flex-col sm:flex-row gap-3 mb-6 pb-6 border-b border-stone-100">
-                    <input type="text" id="username" placeholder="Username"
-                           class="flex-1 px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
-                    <input type="email" id="email" placeholder="Email"
-                           class="flex-1 px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
-                    <button onclick="createUser()" 
-                            class="px-5 py-2.5 bg-stone-800 text-white text-sm font-semibold rounded-lg hover:bg-stone-900 active:scale-[0.98] transition-all duration-150">
-                        Add Person
-                    </button>
-                </div>
-
-                <div id="users-list" class="flex flex-wrap gap-2">
                 </div>
             </div>
         </section>
@@ -199,7 +269,9 @@
 
     <script>
 
-        // check if a token exists in localStorage - if not, the user isnt logged in so send them back to login
+        // --- Auth ---
+
+        // check localStorage for token on every page load and back-button navigation
         function checkAuth() {
             const token = localStorage.getItem('token');
             if (!token) {
@@ -210,9 +282,7 @@
         checkAuth();
 
         window.addEventListener('pageshow', function(event) {
-            if (event.persisted) {
-                checkAuth();
-            }
+            if (event.persisted) { checkAuth(); }
         });
 
         const token = localStorage.getItem('token');
@@ -225,66 +295,133 @@
             window.location.href = '/login.html';
         }
 
-        async function loadUsers() {
-            const response = await fetch('/users', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const users = await response.json();
+        // --- Contact Modal ---
 
-            const userList = document.getElementById('users-list');
-            const payerSelect = document.getElementById('payer-id');
-            const payeeSelect = document.getElementById('payee-id');
-
-            userList.innerHTML = '';
-            
-            payerSelect.innerHTML = '<option value="">Who borrowed?</option>';
-            payeeSelect.innerHTML = '<option value="">Who lent?</option>';
-
-            users.forEach(user => {
-                const chip = document.createElement('span');
-                chip.className = 'inline-flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 text-stone-600 text-sm rounded-full';
-                
-                const avatar = document.createElement('span');
-                avatar.className = 'w-5 h-5 rounded-full bg-brand-100 text-brand-700 text-xs font-semibold flex items-center justify-center';
-                avatar.textContent = user.username.charAt(0).toUpperCase();
-                
-                chip.appendChild(avatar);
-                chip.appendChild(document.createTextNode(user.username));
-                userList.appendChild(chip);
-
-                const payerOption = document.createElement('option');
-                payerOption.value = user.id;
-                payerOption.textContent = user.username;
-                payerSelect.appendChild(payerOption);
-
-                const payeeOption = document.createElement('option');
-                payeeOption.value = user.id;
-                payeeOption.textContent = user.username;
-                payeeSelect.appendChild(payeeOption);
-            });
+        // opens the add contact modal by adding the active class which switches display from none to flex
+        function openContactModal() {
+            document.getElementById('contact-modal').classList.add('active');
         }
 
-        async function createUser() {
-            const usernameInput = document.getElementById('username');
-            const emailInput = document.getElementById('email');
-            const username = usernameInput.value.trim();
-            const email = emailInput.value.trim();
+        // closes the modal and clears the input fields
+        function closeContactModal() {
+            document.getElementById('contact-modal').classList.remove('active');
+            document.getElementById('contact-name').value = '';
+            document.getElementById('contact-email').value = '';
+            document.getElementById('contact-phone').value = '';
+        }
 
-            if (!username || !email) {
-                alert('Please enter both a username and email.');
+        // closes modal if user clicks outside of it
+        document.getElementById('contact-modal').addEventListener('click', function(e) {
+            if (e.target === this) closeContactModal();
+        });
+
+        // --- Contacts ---
+
+        // loads all contacts belonging to the logged in user and populates the contacts section and transaction dropdowns
+        // loads contacts - builds contact cards and populates both transaction modal dropdowns
+        async function loadContacts() {
+            const response = await fetch('/contacts', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const contacts = await response.json();
+
+            const contactsList = document.getElementById('contacts-list');
+            const lentSelect = document.getElementById('lent-contact');
+            const borrowedSelect = document.getElementById('borrowed-contact');
+
+            contactsList.innerHTML = '';
+            lentSelect.innerHTML = '<option value="">Select a contact</option>';
+            borrowedSelect.innerHTML = '<option value="">Select a contact</option>';
+
+            if (contacts.length === 0) {
+                contactsList.innerHTML = '<p class="text-stone-400 text-sm col-span-full">No contacts yet. Add one to get started.</p>';
                 return;
             }
 
-            await fetch('/users', {
+            contacts.forEach(contact => {
+                // build a contact card
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-xl border border-stone-200 p-4 flex flex-col gap-2';
+
+                // avatar circle with first letter of name
+                const avatar = document.createElement('div');
+                avatar.className = 'w-10 h-10 rounded-full bg-brand-100 text-brand-700 font-bold text-sm flex items-center justify-center';
+                avatar.textContent = contact.name.charAt(0).toUpperCase();
+
+                const name = document.createElement('p');
+                name.className = 'text-sm font-semibold text-stone-800';
+                name.textContent = contact.name;
+
+                const detail = document.createElement('p');
+                detail.className = 'text-xs text-stone-400 truncate';
+                detail.textContent = contact.email || contact.phone || '';
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'text-xs text-stone-400 hover:text-red-500 transition-colors duration-150 text-left';
+                deleteBtn.textContent = 'Remove';
+                deleteBtn.onclick = async function() {
+                    await fetch(`/contacts/${contact.id}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    loadContacts();
+                };
+
+                card.appendChild(avatar);
+                card.appendChild(name);
+                card.appendChild(detail);
+                card.appendChild(deleteBtn);
+                contactsList.appendChild(card);
+
+                // populate both transaction modal dropdowns with this contact
+                const lentOption = document.createElement('option');
+                lentOption.value = contact.id;
+                lentOption.textContent = contact.name;
+                lentSelect.appendChild(lentOption);
+
+                const borrowedOption = document.createElement('option');
+                borrowedOption.value = contact.id;
+                borrowedOption.textContent = contact.name;
+                borrowedSelect.appendChild(borrowedOption);
+            });
+        }
+
+        // sends a POST request to create a new contact then reloads the contacts list
+        async function createContact() {
+            const name = document.getElementById('contact-name').value.trim();
+            const email = document.getElementById('contact-email').value.trim();
+            const phone = document.getElementById('contact-phone').value.trim();
+
+            if (!name) {
+                alert('Name is required.');
+                return;
+            }
+
+            if (!email && !phone) {
+                alert('Please provide either an email or phone number.');
+                return;
+            }
+
+            const response = await fetch('/contacts', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, email })
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ name, email: email || null, phone: phone || null })
             });
 
-            usernameInput.value = '';
-            emailInput.value = '';
-            loadUsers();
+            if (response.ok) {
+                closeContactModal();
+                loadContacts();
+            } else {
+                const data = await response.json();
+                alert(data.message || 'Failed to add contact.');
+            }
         }
+
+        // --- Transactions ---
+
         async function loadTransactions() {
             const response = await fetch('/transactions', {
                 headers: { 'Authorization': `Bearer ${token}` }
@@ -307,11 +444,16 @@
 
                 const info = document.createElement('div');
                 info.className = 'flex-1 min-w-0';
-                
+
                 const names = document.createElement('p');
                 names.className = 'text-sm text-stone-800 font-medium truncate';
-                names.innerHTML = `<span class="text-red-600">${txn.borrower_name}</span> owes <span class="text-brand-600">${txn.lender_name}</span>`;
-                
+                // show direction from your perspective using contact_name and direction fields
+                if (txn.direction === 'i_lent') {
+                    names.innerHTML = `<span class="text-brand-600">${txn.contact_name}</span> owes you`;
+                } else {
+                    names.innerHTML = `You owe <span class="text-red-600">${txn.contact_name}</span>`;
+                }
+
                 const desc = document.createElement('p');
                 desc.className = 'text-xs text-stone-400 mt-0.5 truncate';
                 desc.textContent = txn.description || 'No description';
@@ -330,17 +472,16 @@
                 deleteBtn.className = 'text-xs text-stone-400 hover:text-red-500 transition-colors duration-150';
                 deleteBtn.textContent = '✕';
                 deleteBtn.title = 'Delete transaction';
-                deleteBtn.onclick = async function () {
-                await fetch(`/transactions/${txn.id}`, { 
-                    method: 'DELETE',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
+                deleteBtn.onclick = async function() {
+                    await fetch(`/transactions/${txn.id}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
                     loadTransactions();
                 };
 
                 actions.appendChild(amountEl);
                 actions.appendChild(deleteBtn);
-
                 row.appendChild(info);
                 row.appendChild(actions);
                 transactionList.appendChild(row);
@@ -349,63 +490,83 @@
             updateBalances(transactions);
         }
 
-        async function createTransaction() {
-            const payerIdInput = document.getElementById('payer-id');
-            const payeeIdInput = document.getElementById('payee-id');
-            const amountInput = document.getElementById('amount');
-            const descriptionInput = document.getElementById('description');
+        // opens the correct modal based on direction - i_lent opens the I Paid modal, i_borrowed opens the I Borrowed modal
+        function openTransactionModal(direction) {
+            const modalId = direction === 'i_lent' ? 'lent-modal' : 'borrowed-modal';
+            document.getElementById(modalId).classList.add('active');
+        }
 
-            const borrower_id = payerIdInput.value;
-            const lender_id = payeeIdInput.value;
-            const amount = amountInput.value;
-            const description = descriptionInput.value;
-            if (!borrower_id || !lender_id || !amount || !description) {
-                alert('Please fill in all fields.');
+        // closes both transaction modals and clears all their inputs
+        function closeTransactionModal() {
+            document.getElementById('lent-modal').classList.remove('active');
+            document.getElementById('borrowed-modal').classList.remove('active');
+            document.getElementById('lent-contact').value = '';
+            document.getElementById('lent-amount').value = '';
+            document.getElementById('lent-description').value = '';
+            document.getElementById('borrowed-contact').value = '';
+            document.getElementById('borrowed-amount').value = '';
+            document.getElementById('borrowed-description').value = '';
+        }
+
+        // close modals when clicking outside them
+        document.getElementById('lent-modal').addEventListener('click', function(e) {
+            if (e.target === this) closeTransactionModal();
+        });
+        document.getElementById('borrowed-modal').addEventListener('click', function(e) {
+            if (e.target === this) closeTransactionModal();
+        });
+
+        // creates a transaction - direction is either i_lent or i_borrowed passed in from the modal button
+        async function createTransaction(direction) {
+            const prefix = direction === 'i_lent' ? 'lent' : 'borrowed';
+            const contact_id = document.getElementById(prefix + '-contact').value;
+            const amount = document.getElementById(prefix + '-amount').value;
+            const description = document.getElementById(prefix + '-description').value;
+
+            if (!contact_id || !amount) {
+                alert('Please select a contact and enter an amount.');
                 return;
             }
 
-            // Can't owe money to yourself!
-            if (borrower_id === lender_id) {
-                alert("A person can't owe themselves money!");
-                return;
-            }
-
-            await fetch('/transactions', {
+            const response = await fetch('/transactions', {
                 method: 'POST',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-            body: JSON.stringify({ borrower_id, lender_id, amount, description })
+                body: JSON.stringify({ contact_id, direction, amount, description })
             });
 
-            // Clear the form
-            payerIdInput.value = '';
-            payeeIdInput.value = '';
-            amountInput.value = '';
-            descriptionInput.value = '';
-            loadTransactions();
+            if (response.ok) {
+                closeTransactionModal();
+                loadTransactions();
+            } else {
+                const data = await response.json();
+                alert(data.message || 'Failed to add transaction.');
+            }
         }
 
+        // calculates net balance per contact using the direction field
+        // i_lent means contact owes you (positive) i_borrowed means you owe them (negative)
         function updateBalances(transactions) {
             const scoreboard = {};
 
             transactions.forEach(txn => {
-                const borrower = txn.borrower_name;
-                const lender = txn.lender_name;
+                const contact = txn.contact_name;
                 const amount = parseFloat(txn.amount);
 
-                if (!scoreboard[borrower]) scoreboard[borrower] = 0;
-                if (!scoreboard[lender]) scoreboard[lender] = 0;
+                if (!scoreboard[contact]) scoreboard[contact] = 0;
 
-                scoreboard[borrower] -= amount; // Borrower's balance goes DOWN
-                scoreboard[lender] += amount;   // Lender's balance goes UP
+                if (txn.direction === 'i_lent') {
+                    scoreboard[contact] += amount;  // they owe you more
+                } else {
+                    scoreboard[contact] -= amount;  // you owe them more
+                }
             });
 
             const balanceList = document.getElementById('balance-list');
             balanceList.innerHTML = '';
 
-            // If no balances to show
             if (Object.keys(scoreboard).length === 0) {
                 balanceList.innerHTML = '<p class="text-stone-400 text-sm col-span-full">No balances yet.</p>';
                 return;
@@ -415,27 +576,19 @@
                 const balance = scoreboard[name];
                 const isPositive = balance >= 0;
 
-                // Create a card for each person
                 const card = document.createElement('div');
-                card.className = `p-4 rounded-xl border ${
-                    isPositive 
-                        ? 'bg-brand-50 border-brand-200' 
-                        : 'bg-red-50 border-red-200'
-                }`;
+                card.className = `p-4 rounded-xl border ${isPositive ? 'bg-brand-50 border-brand-200' : 'bg-red-50 border-red-200'}`;
 
                 const nameEl = document.createElement('p');
                 nameEl.className = 'text-xs font-medium text-stone-500 mb-1 truncate';
                 nameEl.textContent = name;
 
                 const balanceEl = document.createElement('p');
-                balanceEl.className = `text-lg font-bold ${
-                    isPositive ? 'text-brand-700' : 'text-red-600'
-                }`;
+                balanceEl.className = `text-lg font-bold ${isPositive ? 'text-brand-700' : 'text-red-600'}`;
                 balanceEl.textContent = `${isPositive ? '+' : ''}$${balance.toFixed(2)}`;
 
                 const label = document.createElement('p');
-                label.className = 'text-[10px] uppercase tracking-wider mt-1 ' + 
-                    (isPositive ? 'text-brand-500' : 'text-red-400');
+                label.className = 'text-[10px] uppercase tracking-wider mt-1 ' + (isPositive ? 'text-brand-500' : 'text-red-400');
                 label.textContent = isPositive ? 'is owed' : 'owes';
 
                 card.appendChild(nameEl);
@@ -445,7 +598,8 @@
             }
         }
 
-        loadUsers();
+        // load contacts and transactions when page first opens
+        loadContacts();
         loadTransactions();
     </script>
 </body>
