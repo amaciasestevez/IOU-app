@@ -28,7 +28,15 @@ router.post('/register', async (req: Request, res: Response, next: NextFunction)
     const result = await db.query<Omit<User, 'password'>>(text, [username, email, hashedPassword]);
 
     res.json({ message: 'Account created successfully!', user: result.rows[0] });
-  } catch (err) {
+  } catch (err: any) {
+    if (err.code === '23505') {
+      if (err.constraint === 'users_email_key') {
+        res.status(409).json({ message: 'An account with this email already exists' });
+      } else {
+        res.status(409).json({ message: 'Username already taken' });
+      }
+      return;
+    }
     next(err);
   }
 });
@@ -63,7 +71,15 @@ router.post('/login', async (req: Request, res: Response, next: NextFunction) =>
     } else {
       res.status(401).json({ message: 'Invalid username or password' });
     }
-  } catch (err) {
+  } catch (err: any) {
+    if (err.code === '23505') {
+      if (err.constraint === 'users_email_key') {
+        res.status(409).json({ message: 'An account with this email already exists' });
+      } else {
+        res.status(409).json({ message: 'Username already taken' });
+      }
+      return;
+    }
     next(err);
   }
 });

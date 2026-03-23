@@ -220,19 +220,20 @@ router.post('/:id/members', authenticateToken, async (req: Request, res: Respons
     const groupId = parseInt(String(req.params.id));
     const admin = await requireAdmin(req, res, groupId);
     if (!admin) return;
-
-    const { user_id } = req.body;
-    if (!user_id) {
-      res.status(400).json({ message: 'user_id is required' });
+    const { email } = req.body;
+    if (!email) {
+      res.status(400).json({ message: 'Email is required' });
       return;
     }
 
-    // Check user exists
-    const userCheck = await db.query('SELECT id FROM users WHERE id = $1', [user_id]);
+    const userCheck = await db.query('SELECT id FROM users WHERE email = $1', [email]);
     if (userCheck.rows.length === 0) {
-      res.status(404).json({ message: 'User not found' });
+      res.status(404).json({ message: 'No account found with that email' });
       return;
     }
+
+    const user_id = userCheck.rows[0].id;
+
 
     // Check not already a member
     const memberCheck = await db.query(
@@ -245,8 +246,8 @@ router.post('/:id/members', authenticateToken, async (req: Request, res: Respons
     }
 
     const result = await db.query<GroupMember>(
-      'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3) RETURNING *',
-      [groupId, user_id, 'member']
+      'INSERT INTO group_members (group_id, user_id, role, status) VALUES ($1, $2, $3, $4) RETURNING *',
+      [groupId, user_id, 'member', 'active']
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {

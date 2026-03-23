@@ -10,6 +10,9 @@ interface Transaction {
   contact_id: number;
   direction: 'i_lent' | 'i_borrowed';
   amount: number;
+  remaining: number;
+  total_paid: number;
+  last_paid_at: string;
   description: string;
   is_paid: boolean;
   contact_name?: string;
@@ -36,12 +39,17 @@ router.get('/', authenticateToken, async (req: Request, res: Response, next: Nex
   try {
     const user_id = (req as any).user.id;
     const query = `
-      SELECT t.*, c.name AS contact_name
-      FROM transactions t
-      JOIN contacts c ON t.contact_id = c.id
-      WHERE t.user_id = $1
-      ORDER BY t.date DESC
-    `;
+      SELECT t.*, c.name AS contact_name,
+      COALESCE(SUM(p.amount), 0) AS total_paid,
+      t.amount - COALESCE(SUM(p.amount), 0) AS remaining,
+      MAX(p.paid_at) AS last_paid_at
+    FROM transactions t
+    JOIN contacts c ON t.contact_id = c.id
+    LEFT JOIN payments p ON p.transaction_id = t.id
+    WHERE t.user_id = $1
+    GROUP BY t.id, c.name
+    ORDER BY t.date DESC
+`;
     const result = await db.query<Transaction>(query, [user_id]);
     res.json(result.rows);
   } catch (err) {

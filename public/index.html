@@ -253,14 +253,14 @@
                 <!-- I Paid button -->
                 <button onclick="openTransactionModal('i_lent')"
                         class="bg-white border-2 border-brand-500 rounded-xl p-6 flex flex-col items-center gap-2 hover:bg-brand-50 active:scale-[0.98] transition-all duration-150 group">
-                    <span class="text-2xl">💸</span>
+                    
                     <span class="font-semibold text-stone-800 group-hover:text-brand-700 transition-colors">I Paid</span>
                     <span class="text-xs text-stone-400">Someone owes you</span>
                 </button>
                 <!-- I Borrowed button -->
                 <button onclick="openTransactionModal('i_borrowed')"
                         class="bg-white border-2 border-red-300 rounded-xl p-6 flex flex-col items-center gap-2 hover:bg-red-50 active:scale-[0.98] transition-all duration-150 group">
-                    <span class="text-2xl">🤲</span>
+                    
                     <span class="font-semibold text-stone-800 group-hover:text-red-600 transition-colors">I Borrowed</span>
                     <span class="text-xs text-stone-400">You owe someone</span>
                 </button>
@@ -452,15 +452,17 @@
             }
 
             transactions.forEach(txn => {
+                const remaining = parseFloat(txn.remaining);
+                const isPaid = remaining <= 0;
+
                 const row = document.createElement('div');
-                row.className = 'flex items-center justify-between px-6 py-4 border-b border-stone-100 last:border-b-0 hover:bg-stone-50 transition-colors duration-150';
+                row.className = `flex items-center justify-between px-6 py-4 border-b border-stone-100 last:border-b-0 transition-colors duration-150 ${isPaid ? 'opacity-50' : 'hover:bg-stone-50'}`;
 
                 const info = document.createElement('div');
                 info.className = 'flex-1 min-w-0';
 
                 const names = document.createElement('p');
-                names.className = 'text-sm text-stone-800 font-medium truncate';
-                // show direction from your perspective using contact_name and direction fields
+                names.className = `text-sm text-stone-800 font-medium truncate ${isPaid ? 'line-through' : ''}`;
                 if (txn.direction === 'i_lent') {
                     names.innerHTML = `<span class="text-brand-600">${txn.contact_name}</span> owes you`;
                 } else {
@@ -471,15 +473,37 @@
                 desc.className = 'text-xs text-stone-400 mt-0.5 truncate';
                 desc.textContent = txn.description || 'No description';
 
+                const balanceLabel = document.createElement('p');
+                balanceLabel.className = 'text-xs mt-0.5';
+                if (isPaid) {
+                    const paidDate = new Date(txn.last_paid_at).toLocaleDateString();
+                    balanceLabel.className += ' text-brand-500';
+                    balanceLabel.textContent = `Paid off $${parseFloat(txn.amount).toFixed(2)} on ${paidDate}`;
+                } else if (parseFloat(txn.total_paid) > 0) {
+                    balanceLabel.className += ' text-stone-400';
+                    balanceLabel.textContent = `$${remaining.toFixed(2)} remaining of $${parseFloat(txn.amount).toFixed(2)}`;
+                }
+
                 info.appendChild(names);
                 info.appendChild(desc);
+                info.appendChild(balanceLabel);
 
                 const actions = document.createElement('div');
-                actions.className = 'flex items-center gap-4 ml-4 flex-shrink-0';
+                actions.className = 'flex items-center gap-3 ml-4 flex-shrink-0';
 
                 const amountEl = document.createElement('span');
-                amountEl.className = 'text-sm font-semibold text-stone-800';
-                amountEl.textContent = `$${parseFloat(txn.amount).toFixed(2)}`;
+                amountEl.className = `text-sm font-semibold ${isPaid ? 'text-brand-500' : 'text-stone-800'}`;
+                amountEl.textContent = isPaid ? 'Paid' : `$${remaining.toFixed(2)}`;
+
+                if (!isPaid) {
+                    const payBtn = document.createElement('button');
+                    payBtn.className = 'text-xs px-2.5 py-1 bg-brand-50 text-brand-700 border border-brand-200 rounded-lg hover:bg-brand-100 transition';
+                    payBtn.textContent = 'Pay';
+                    payBtn.onclick = function() {
+                        openPaymentModal(txn.id, txn.contact_name, remaining, txn.direction);
+                    };
+                    actions.appendChild(payBtn);
+                }
 
                 const deleteBtn = document.createElement('button');
                 deleteBtn.className = 'text-xs text-stone-400 hover:text-red-500 transition-colors duration-150';
@@ -566,14 +590,14 @@
 
             transactions.forEach(txn => {
                 const contact = txn.contact_name;
-                const amount = parseFloat(txn.amount);
+                const remaining = parseFloat(txn.remaining);
 
                 if (!scoreboard[contact]) scoreboard[contact] = 0;
 
                 if (txn.direction === 'i_lent') {
-                    scoreboard[contact] += amount;  // they owe you more
+                    scoreboard[contact] += remaining;
                 } else {
-                    scoreboard[contact] -= amount;  // you owe them more
+                    scoreboard[contact] -= remaining;
                 }
             });
 
@@ -602,7 +626,7 @@
 
                 const label = document.createElement('p');
                 label.className = 'text-[10px] uppercase tracking-wider mt-1 ' + (isPositive ? 'text-brand-500' : 'text-red-400');
-                label.textContent = isPositive ? 'is owed' : 'owes';
+                label.textContent = isPositive ? 'owes you' : 'you owe';
 
                 card.appendChild(nameEl);
                 card.appendChild(balanceEl);
@@ -646,10 +670,88 @@
             });
         }
 
+        // tracks which transaction is currently being paid
+        let activePaymentTransactionId = null;
+
+        // opens the payment modal for a specific transaction
+        function openPaymentModal(txnId, contactName, remaining, direction) {
+            activePaymentTransactionId = txnId;
+            document.getElementById('payment-modal-subtitle').textContent =
+                direction === 'i_lent' ? `Record a payment from ${contactName}` : `Record a payment to ${contactName}`;
+            document.getElementById('payment-remaining-label').textContent =
+                `Remaining balance: $${remaining.toFixed(2)}`;
+            document.getElementById('payment-amount').value = '';
+            document.getElementById('payment-modal').classList.add('active');
+        }
+
+        // closes the payment modal
+        function closePaymentModal() {
+            document.getElementById('payment-modal').classList.remove('active');
+            document.getElementById('payment-amount').value = '';
+            activePaymentTransactionId = null;
+        }
+
+        document.getElementById('payment-modal').addEventListener('click', function(e) {
+            if (e.target === this) closePaymentModal();
+        });
+
+        // submits a payment for the active transaction
+        async function submitPayment() {
+            const amount = document.getElementById('payment-amount').value;
+            if (!amount || parseFloat(amount) <= 0) {
+                alert('Please enter a valid amount.');
+                return;
+            }
+            const response = await fetch(`/api/v1/transactions/${activePaymentTransactionId}/payments`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ amount: parseFloat(amount) })
+            });
+            if (response.ok) {
+                closePaymentModal();
+                loadTransactions();
+            } else {
+                const data = await response.json();
+                alert(data.message || 'Failed to record payment.');
+            }
+        }
+
         // load contacts, transactions, and groups when page first opens
         loadContacts();
         loadTransactions();
         loadGroups();
     </script>
+
+    <!-- Make Payment Modal -->
+    <div id="payment-modal" class="modal-overlay">
+        <div class="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md mx-4">
+            <h2 class="font-display text-2xl text-stone-800 mb-1">Make Payment</h2>
+            <p id="payment-modal-subtitle" class="text-stone-500 text-sm mb-6"></p>
+            <div class="flex flex-col gap-4">
+                <div>
+                    <label class="block text-xs font-medium text-stone-500 mb-1.5">Amount <span class="text-red-400">*</span></label>
+                    <div class="relative">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">$</span>
+                        <input type="number" id="payment-amount" placeholder="0.00" min="0.01" step="0.01"
+                               class="w-full pl-7 pr-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
+                    </div>
+                </div>
+                <p id="payment-remaining-label" class="text-xs text-stone-400"></p>
+            </div>
+            <div class="flex gap-3 mt-6">
+                <button onclick="closePaymentModal()"
+                        class="flex-1 px-4 py-2.5 bg-stone-100 text-stone-700 text-sm font-semibold rounded-lg hover:bg-stone-200 transition">
+                    Cancel
+                </button>
+                <button onclick="submitPayment()"
+                        class="flex-1 px-4 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition">
+                    Record Payment
+                </button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

@@ -69,10 +69,10 @@
             <h2 class="font-display text-2xl text-stone-800 mb-6">Add Member</h2>
             <div class="flex flex-col gap-4">
                 <div>
-                    <label class="block text-xs font-medium text-stone-500 mb-1.5">User ID <span class="text-red-400">*</span></label>
-                    <input type="number" id="add-member-userid" placeholder="Enter user ID"
+                    <label class="block text-xs font-medium text-stone-500 mb-1.5">Email <span class="text-red-400">*</span></label>
+                    <input type="email" id="add-member-email" placeholder="daniel@example.com"
                            class="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-500">
-                    <p class="text-xs text-stone-400 mt-1">Ask the person to share their user ID from their profile.</p>
+                    <p class="text-xs text-stone-400 mt-1">They must have an account on IOU.</p>
                 </div>
             </div>
             <div class="flex gap-3 mt-6">
@@ -167,7 +167,7 @@
                     <h1 id="group-detail-name" class="font-display text-2xl text-stone-800"></h1>
                     <p id="group-detail-desc" class="text-stone-500 text-sm mt-0.5 hidden"></p>
                 </div>
-                <button onclick="document.getElementById('add-expense-modal').classList.add('active')"
+                <button onclick="openExpenseModal()"
                         class="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition">
                     + Log Expense
                 </button>
@@ -460,25 +460,24 @@
         // --- Add Member ---
 
         async function addMember() {
-            const userId = parseInt(document.getElementById('add-member-userid').value);
-            if (!userId) { alert('Please enter a valid user ID.'); return; }
+            const email = document.getElementById('add-member-email').value.trim();
+            if (!email) { alert('Please enter an email address.'); return; }
 
             const res = await fetch(`/api/v1/groups/${currentGroupId}/members`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ user_id: userId })
+                body: JSON.stringify({ email })
             });
 
             if (res.ok) {
                 document.getElementById('add-member-modal').classList.remove('active');
-                document.getElementById('add-member-userid').value = '';
+                document.getElementById('add-member-email').value = '';
                 loadGroupDetail(currentGroupId);
             } else {
                 const data = await res.json();
                 alert(data.message || 'Failed to add member.');
             }
         }
-
         // --- Log Expense ---
 
         function toggleCustomSplits() {
@@ -551,6 +550,20 @@
                 const data = await res.json();
                 alert(data.message || 'Failed to log expense.');
             }
+        }
+
+        function openExpenseModal() {
+            // repopulate the dropdown every time the modal opens
+            const select = document.getElementById('expense-paid-by');
+            select.innerHTML = '<option value="">Select member</option>';
+            currentMembers.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m.user_id;
+                opt.textContent = m.username + (m.user_id === currentUserId ? ' (you)' : '');
+                if (m.user_id === currentUserId) opt.selected = true;
+                select.appendChild(opt);
+            });
+            document.getElementById('add-expense-modal').classList.add('active');
         }
 
         // --- Init ---
