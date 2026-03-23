@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IOU Manager - Groups</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'display': ['"Playfair Display"', 'serif'],
+                        'body': ['"DM Sans"', 'sans-serif'],
+                    },
+                    colors: {
+                        'brand': {
+                            50: '#eef7f0', 100: '#d5edd9', 200: '#aedbb7',
+                            300: '#7cc48c', 400: '#4ea864', 500: '#2f8a47',
+                            600: '#236e38', 700: '#1d572e', 800: '#1a4627', 900: '#163a21',
+                        },
+                        'surface': {
+                            50: '#fafaf9', 100: '#f5f5f4', 200: '#e7e5e4', 300: '#d6d3d1',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        * { font-family: 'DM Sans', sans-serif; }
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: center; justify-content: center; }
+        .modal-overlay.active { display: flex; }
+    </style>
+</head>
+
+<body class="bg-stone-100 min-h-screen">
+
+    <!-- Create Group Modal -->
+    <div id="create-group-modal" class="modal-overlay">
+        <div class="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md mx-4">
+            <h2 class="font-display text-2xl text-stone-800 mb-6">Create Group</h2>
+            <div class="flex flex-col gap-4">
+                <div>
+                    <label class="block text-xs font-medium text-stone-500 mb-1.5">Name <span class="text-red-400">*</span></label>
+                    <input type="text" id="new-group-name" placeholder="Weekend Trip"
+                           class="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-stone-500 mb-1.5">Description</label>
+                    <input type="text" id="new-group-desc" placeholder="Optional description"
+                           class="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                </div>
+            </div>
+            <div class="flex gap-3 mt-6">
+                <button onclick="document.getElementById('create-group-modal').classList.remove('active')"
+                        class="flex-1 px-4 py-2.5 bg-stone-100 text-stone-700 text-sm font-semibold rounded-lg hover:bg-stone-200 transition">Cancel</button>
+                <button onclick="createGroup()"
+                        class="flex-1 px-4 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Member Modal -->
+    <div id="add-member-modal" class="modal-overlay">
+        <div class="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md mx-4">
+            <h2 class="font-display text-2xl text-stone-800 mb-6">Add Member</h2>
+            <div class="flex flex-col gap-4">
+                <div>
+                    <label class="block text-xs font-medium text-stone-500 mb-1.5">User ID <span class="text-red-400">*</span></label>
+                    <input type="number" id="add-member-userid" placeholder="Enter user ID"
+                           class="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                    <p class="text-xs text-stone-400 mt-1">Ask the person to share their user ID from their profile.</p>
+                </div>
+            </div>
+            <div class="flex gap-3 mt-6">
+                <button onclick="document.getElementById('add-member-modal').classList.remove('active')"
+                        class="flex-1 px-4 py-2.5 bg-stone-100 text-stone-700 text-sm font-semibold rounded-lg hover:bg-stone-200 transition">Cancel</button>
+                <button onclick="addMember()"
+                        class="flex-1 px-4 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition">Add</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Expense Modal -->
+    <div id="add-expense-modal" class="modal-overlay">
+        <div class="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+            <h2 class="font-display text-2xl text-stone-800 mb-6">Log Expense</h2>
+            <div class="flex flex-col gap-4">
+                <div>
+                    <label class="block text-xs font-medium text-stone-500 mb-1.5">Paid by <span class="text-red-400">*</span></label>
+                    <select id="expense-paid-by"
+                            class="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-500 appearance-none">
+                        <option value="">Select member</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-stone-500 mb-1.5">Amount <span class="text-red-400">*</span></label>
+                    <div class="relative">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">$</span>
+                        <input type="number" id="expense-amount" placeholder="0.00" min="0.01" step="0.01"
+                               class="w-full pl-7 pr-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-stone-500 mb-1.5">Description</label>
+                    <input type="text" id="expense-desc" placeholder="Dinner, gas, etc."
+                           class="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-stone-500 mb-1.5">Split</label>
+                    <select id="expense-split-type" onchange="toggleCustomSplits()"
+                            class="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-500 appearance-none">
+                        <option value="equal">Equal split</option>
+                        <option value="custom">Custom amounts</option>
+                    </select>
+                </div>
+                <div id="custom-splits-container" class="hidden flex flex-col gap-2">
+                    <p class="text-xs text-stone-400">Enter each member's share. Must sum to total.</p>
+                    <div id="custom-splits-inputs"></div>
+                </div>
+            </div>
+            <div class="flex gap-3 mt-6">
+                <button onclick="document.getElementById('add-expense-modal').classList.remove('active')"
+                        class="flex-1 px-4 py-2.5 bg-stone-100 text-stone-700 text-sm font-semibold rounded-lg hover:bg-stone-200 transition">Cancel</button>
+                <button onclick="logExpense()"
+                        class="flex-1 px-4 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition">Log Expense</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navbar -->
+    <nav class="sticky top-0 z-50 backdrop-blur-md bg-white/80 border-b border-stone-200">
+        <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <a href="/index.html" class="text-stone-500 hover:text-stone-800 transition text-sm">← Dashboard</a>
+                <div class="w-px h-5 bg-stone-200"></div>
+                <span class="font-display text-xl text-stone-800">Groups</span>
+            </div>
+            <a onclick="logout()" class="text-sm text-stone-500 hover:text-stone-800 transition cursor-pointer">Log Out</a>
+        </div>
+    </nav>
+
+    <main class="max-w-5xl mx-auto px-6 py-10">
+
+        <!-- Groups list (shown when no group selected) -->
+        <div id="groups-list-view">
+            <div class="flex items-center justify-between mb-6">
+                <h1 class="font-display text-2xl text-stone-800">Your Groups</h1>
+                <button onclick="document.getElementById('create-group-modal').classList.add('active')"
+                        class="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition">
+                    + New Group
+                </button>
+            </div>
+            <div id="groups-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                <p class="text-stone-400 text-sm col-span-full">No groups yet.</p>
+            </div>
+        </div>
+
+        <!-- Group detail (shown when ?id= in URL) -->
+        <div id="group-detail-view" class="hidden">
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <button onclick="showGroupsList()" class="text-sm text-stone-500 hover:text-stone-800 mb-2 inline-block">← All Groups</button>
+                    <h1 id="group-detail-name" class="font-display text-2xl text-stone-800"></h1>
+                    <p id="group-detail-desc" class="text-stone-500 text-sm mt-0.5 hidden"></p>
+                </div>
+                <button onclick="document.getElementById('add-expense-modal').classList.add('active')"
+                        class="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition">
+                    + Log Expense
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+                <!-- Balances -->
+                <div class="md:col-span-2 space-y-6">
+                    <section>
+                        <h2 class="text-sm font-semibold text-stone-400 uppercase tracking-wider mb-3">Balances</h2>
+                        <div id="group-balances" class="space-y-2">
+                            <p class="text-stone-400 text-sm">No outstanding balances.</p>
+                        </div>
+                    </section>
+
+                    <section>
+                        <h2 class="text-sm font-semibold text-stone-400 uppercase tracking-wider mb-3">Expenses</h2>
+                        <div class="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
+                            <div id="group-expenses-list">
+                                <p class="py-8 text-center text-stone-400 text-sm">No expenses yet.</p>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- Members sidebar -->
+                <div>
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="text-sm font-semibold text-stone-400 uppercase tracking-wider">Members</h2>
+                        <button id="add-member-btn" onclick="document.getElementById('add-member-modal').classList.add('active')"
+                                class="text-xs text-brand-600 hover:text-brand-800 font-semibold transition hidden">
+                            + Add
+                        </button>
+                    </div>
+                    <div id="group-members-list" class="space-y-2"></div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        // --- Auth ---
+        function checkAuth() {
+            if (!localStorage.getItem('token')) window.location.href = '/login.html';
+        }
+        checkAuth();
+        window.addEventListener('pageshow', e => { if (e.persisted) checkAuth(); });
+
+        const token = localStorage.getItem('token');
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('username');
+            window.location.href = '/login.html';
+        }
+
+        // --- State ---
+        let currentGroupId = null;
+        let currentMembers = [];
+        let currentUserId = null;
+
+        // Decode user ID from JWT payload
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            currentUserId = payload.id;
+        } catch {}
+
+        // --- Group List ---
+
+        async function loadGroups() {
+            const res = await fetch('/api/v1/groups', { headers: { Authorization: `Bearer ${token}` } });
+            if (!res.ok) return;
+            const groups = await res.json();
+            const grid = document.getElementById('groups-grid');
+            grid.innerHTML = '';
+
+            if (!groups.length) {
+                grid.innerHTML = '<p class="text-stone-400 text-sm col-span-full">No groups yet. Create one to get started.</p>';
+                return;
+            }
+
+            groups.forEach(g => {
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-xl border border-stone-200 p-5 flex flex-col gap-3 cursor-pointer hover:border-brand-400 transition-colors';
+                card.onclick = () => loadGroupDetail(g.id);
+
+                const icon = document.createElement('div');
+                icon.className = 'w-10 h-10 rounded-full bg-brand-100 text-brand-700 font-bold flex items-center justify-center';
+                icon.textContent = g.name.charAt(0).toUpperCase();
+
+                const name = document.createElement('p');
+                name.className = 'font-semibold text-stone-800 text-sm truncate';
+                name.textContent = g.name;
+
+                card.appendChild(icon);
+                card.appendChild(name);
+                grid.appendChild(card);
+            });
+        }
+
+        // --- Group Detail ---
+
+        async function loadGroupDetail(groupId) {
+            currentGroupId = groupId;
+            document.getElementById('groups-list-view').classList.add('hidden');
+            document.getElementById('group-detail-view').classList.remove('hidden');
+
+            // Update URL without reload
+            history.pushState({}, '', `/groups.html?id=${groupId}`);
+
+            const res = await fetch(`/api/v1/groups/${groupId}`, { headers: { Authorization: `Bearer ${token}` } });
+            if (!res.ok) { alert('Could not load group'); return; }
+            const group = await res.json();
+
+            document.getElementById('group-detail-name').textContent = group.name;
+            const descEl = document.getElementById('group-detail-desc');
+            if (group.description) {
+                descEl.textContent = group.description;
+                descEl.classList.remove('hidden');
+            } else {
+                descEl.classList.add('hidden');
+            }
+
+            currentMembers = group.members || [];
+            renderMembers(currentMembers, groupId);
+            await loadExpenses(groupId);
+            await loadBalances(groupId);
+        }
+
+        function renderMembers(members, groupId) {
+            const list = document.getElementById('group-members-list');
+            list.innerHTML = '';
+
+            // Show "Add" button only for admins
+            const isAdmin = members.some(m => m.user_id === currentUserId && m.role === 'admin');
+            const addBtn = document.getElementById('add-member-btn');
+            if (isAdmin) addBtn.classList.remove('hidden');
+            else addBtn.classList.add('hidden');
+
+            members.forEach(m => {
+                const row = document.createElement('div');
+                row.className = 'flex items-center justify-between bg-white rounded-lg border border-stone-200 px-3 py-2.5';
+
+                const left = document.createElement('div');
+                left.className = 'flex items-center gap-2';
+
+                const avatar = document.createElement('div');
+                avatar.className = 'w-7 h-7 rounded-full bg-brand-100 text-brand-700 font-semibold text-xs flex items-center justify-center flex-shrink-0';
+                avatar.textContent = m.username.charAt(0).toUpperCase();
+
+                const name = document.createElement('span');
+                name.className = 'text-sm text-stone-700';
+                name.textContent = m.username + (m.user_id === currentUserId ? ' (you)' : '');
+
+                left.appendChild(avatar);
+                left.appendChild(name);
+
+                const badge = document.createElement('span');
+                badge.className = `text-xs px-2 py-0.5 rounded-full ${m.role === 'admin' ? 'bg-brand-100 text-brand-700' : 'bg-stone-100 text-stone-500'}`;
+                badge.textContent = m.role;
+
+                row.appendChild(left);
+                row.appendChild(badge);
+                list.appendChild(row);
+            });
+        }
+
+        async function loadExpenses(groupId) {
+            const res = await fetch(`/api/v1/groups/${groupId}/expenses`, { headers: { Authorization: `Bearer ${token}` } });
+            if (!res.ok) return;
+            const expenses = await res.json();
+            const list = document.getElementById('group-expenses-list');
+
+            if (!expenses.length) {
+                list.innerHTML = '<p class="py-8 text-center text-stone-400 text-sm">No expenses yet.</p>';
+                return;
+            }
+
+            list.innerHTML = '';
+            expenses.forEach(exp => {
+                const row = document.createElement('div');
+                row.className = 'flex items-center justify-between px-5 py-4 border-b border-stone-100 last:border-b-0';
+
+                const info = document.createElement('div');
+                const desc = document.createElement('p');
+                desc.className = 'text-sm font-medium text-stone-800';
+                desc.textContent = exp.description || 'Expense';
+                const meta = document.createElement('p');
+                meta.className = 'text-xs text-stone-400 mt-0.5';
+                meta.textContent = `Paid by ${exp.paid_by_username} · ${exp.split_type} split`;
+                info.appendChild(desc);
+                info.appendChild(meta);
+
+                const amount = document.createElement('span');
+                amount.className = 'text-sm font-semibold text-stone-800 ml-4 flex-shrink-0';
+                amount.textContent = `$${parseFloat(exp.amount).toFixed(2)}`;
+
+                row.appendChild(info);
+                row.appendChild(amount);
+                list.appendChild(row);
+            });
+
+            // Populate paid-by dropdown for expense modal
+            const select = document.getElementById('expense-paid-by');
+            select.innerHTML = '<option value="">Select member</option>';
+            currentMembers.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m.user_id;
+                opt.textContent = m.username + (m.user_id === currentUserId ? ' (you)' : '');
+                if (m.user_id === currentUserId) opt.selected = true;
+                select.appendChild(opt);
+            });
+        }
+
+        async function loadBalances(groupId) {
+            const res = await fetch(`/api/v1/groups/${groupId}/balances`, { headers: { Authorization: `Bearer ${token}` } });
+            if (!res.ok) return;
+            const balances = await res.json();
+            const container = document.getElementById('group-balances');
+
+            if (!balances.length) {
+                container.innerHTML = '<p class="text-stone-400 text-sm">All settled up!</p>';
+                return;
+            }
+
+            container.innerHTML = '';
+            balances.forEach(b => {
+                const card = document.createElement('div');
+                const isMyDebt = b.debtor_id === currentUserId;
+                const isMyCredit = b.creditor_id === currentUserId;
+
+                card.className = `flex items-center justify-between p-4 rounded-xl border ${
+                    isMyDebt ? 'bg-red-50 border-red-200' : isMyCredit ? 'bg-brand-50 border-brand-200' : 'bg-white border-stone-200'
+                }`;
+
+                const text = document.createElement('p');
+                text.className = 'text-sm text-stone-700';
+                if (isMyDebt) {
+                    text.innerHTML = `You owe <strong>${b.creditor_name}</strong>`;
+                } else if (isMyCredit) {
+                    text.innerHTML = `<strong>${b.debtor_name}</strong> owes you`;
+                } else {
+                    text.innerHTML = `<strong>${b.debtor_name}</strong> owes <strong>${b.creditor_name}</strong>`;
+                }
+
+                const amount = document.createElement('span');
+                amount.className = `text-sm font-bold ml-4 flex-shrink-0 ${isMyDebt ? 'text-red-600' : isMyCredit ? 'text-brand-700' : 'text-stone-700'}`;
+                amount.textContent = `$${b.amount.toFixed(2)}`;
+
+                card.appendChild(text);
+                card.appendChild(amount);
+                container.appendChild(card);
+            });
+        }
+
+        function showGroupsList() {
+            currentGroupId = null;
+            document.getElementById('group-detail-view').classList.add('hidden');
+            document.getElementById('groups-list-view').classList.remove('hidden');
+            history.pushState({}, '', '/groups.html');
+        }
+
+        // --- Create Group ---
+
+        async function createGroup() {
+            const name = document.getElementById('new-group-name').value.trim();
+            const desc = document.getElementById('new-group-desc').value.trim();
+            if (!name) { alert('Group name is required.'); return; }
+
+            const res = await fetch('/api/v1/groups', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ name, description: desc || null })
+            });
+
+            if (res.ok) {
+                const group = await res.json();
+                document.getElementById('create-group-modal').classList.remove('active');
+                document.getElementById('new-group-name').value = '';
+                document.getElementById('new-group-desc').value = '';
+                loadGroupDetail(group.id);
+            } else {
+                const data = await res.json();
+                alert(data.message || 'Failed to create group.');
+            }
+        }
+
+        // --- Add Member ---
+
+        async function addMember() {
+            const userId = parseInt(document.getElementById('add-member-userid').value);
+            if (!userId) { alert('Please enter a valid user ID.'); return; }
+
+            const res = await fetch(`/api/v1/groups/${currentGroupId}/members`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ user_id: userId })
+            });
+
+            if (res.ok) {
+                document.getElementById('add-member-modal').classList.remove('active');
+                document.getElementById('add-member-userid').value = '';
+                loadGroupDetail(currentGroupId);
+            } else {
+                const data = await res.json();
+                alert(data.message || 'Failed to add member.');
+            }
+        }
+
+        // --- Log Expense ---
+
+        function toggleCustomSplits() {
+            const splitType = document.getElementById('expense-split-type').value;
+            const container = document.getElementById('custom-splits-container');
+            if (splitType === 'custom') {
+                container.classList.remove('hidden');
+                renderCustomSplitInputs();
+            } else {
+                container.classList.add('hidden');
+            }
+        }
+
+        function renderCustomSplitInputs() {
+            const inputs = document.getElementById('custom-splits-inputs');
+            inputs.innerHTML = '';
+            currentMembers.forEach(m => {
+                const row = document.createElement('div');
+                row.className = 'flex items-center gap-2';
+                const label = document.createElement('span');
+                label.className = 'text-sm text-stone-600 w-28 truncate flex-shrink-0';
+                label.textContent = m.username;
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.min = '0';
+                input.step = '0.01';
+                input.placeholder = '0.00';
+                input.dataset.userId = m.user_id;
+                input.className = 'flex-1 px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-500';
+                row.appendChild(label);
+                row.appendChild(input);
+                inputs.appendChild(row);
+            });
+        }
+
+        async function logExpense() {
+            const paidBy = document.getElementById('expense-paid-by').value;
+            const amount = document.getElementById('expense-amount').value;
+            const desc = document.getElementById('expense-desc').value;
+            const splitType = document.getElementById('expense-split-type').value;
+
+            if (!paidBy || !amount) { alert('Paid by and amount are required.'); return; }
+
+            const body = { paid_by: parseInt(paidBy), amount: parseFloat(amount), description: desc || null, split_type: splitType };
+
+            if (splitType === 'custom') {
+                const splitInputs = document.querySelectorAll('#custom-splits-inputs input');
+                const splits = Array.from(splitInputs).map(inp => ({
+                    user_id: parseInt(inp.dataset.userId),
+                    share_amount: parseFloat(inp.value) || 0
+                }));
+                body.splits = splits;
+            }
+
+            const res = await fetch(`/api/v1/groups/${currentGroupId}/expenses`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify(body)
+            });
+
+            if (res.ok) {
+                document.getElementById('add-expense-modal').classList.remove('active');
+                document.getElementById('expense-amount').value = '';
+                document.getElementById('expense-desc').value = '';
+                document.getElementById('expense-split-type').value = 'equal';
+                document.getElementById('custom-splits-container').classList.add('hidden');
+                loadExpenses(currentGroupId);
+                loadBalances(currentGroupId);
+            } else {
+                const data = await res.json();
+                alert(data.message || 'Failed to log expense.');
+            }
+        }
+
+        // --- Init ---
+
+        // Populate paid-by dropdown when expense modal opens
+        document.getElementById('add-expense-modal').addEventListener('click', function(e) {
+            if (e.target === this) this.classList.remove('active');
+        });
+        document.getElementById('create-group-modal').addEventListener('click', function(e) {
+            if (e.target === this) this.classList.remove('active');
+        });
+        document.getElementById('add-member-modal').addEventListener('click', function(e) {
+            if (e.target === this) this.classList.remove('active');
+        });
+
+        // Check URL for ?id= on load
+        const urlParams = new URLSearchParams(window.location.search);
+        const groupIdParam = urlParams.get('id');
+        if (groupIdParam) {
+            loadGroupDetail(parseInt(groupIdParam));
+        } else {
+            loadGroups();
+        }
+    </script>
+</body>
+</html>
