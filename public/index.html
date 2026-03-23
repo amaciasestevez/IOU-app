@@ -219,6 +219,19 @@
             </div>
         </section>
 
+        <!-- Groups -->
+        <section class="mb-10 animate-fade-up delay-2">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-sm font-semibold text-stone-400 uppercase tracking-wider">Groups</h2>
+                <a href="/groups.html" class="px-4 py-2 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 transition">
+                    Manage Groups
+                </a>
+            </div>
+            <div id="groups-list" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                <p class="text-stone-400 text-sm col-span-full">No groups yet.</p>
+            </div>
+        </section>
+
         <!-- Contacts -->
         <section class="mb-10 animate-fade-up delay-2">
             <div class="flex items-center justify-between mb-4">
@@ -320,7 +333,7 @@
         // loads all contacts belonging to the logged in user and populates the contacts section and transaction dropdowns
         // loads contacts - builds contact cards and populates both transaction modal dropdowns
         async function loadContacts() {
-            const response = await fetch('/contacts', {
+            const response = await fetch('/api/v1/contacts', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const contacts = await response.json();
@@ -360,7 +373,7 @@
                 deleteBtn.className = 'text-xs text-stone-400 hover:text-red-500 transition-colors duration-150 text-left';
                 deleteBtn.textContent = 'Remove';
                 deleteBtn.onclick = async function() {
-                    await fetch(`/contacts/${contact.id}`, {
+                    await fetch(`/api/v1/contacts/${contact.id}`, {
                         method: 'DELETE',
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
@@ -402,7 +415,7 @@
                 return;
             }
 
-            const response = await fetch('/contacts', {
+            const response = await fetch('/api/v1/contacts', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -423,7 +436,7 @@
         // --- Transactions ---
 
         async function loadTransactions() {
-            const response = await fetch('/transactions', {
+            const response = await fetch('/api/v1/transactions', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const transactions = await response.json();
@@ -473,7 +486,7 @@
                 deleteBtn.textContent = '✕';
                 deleteBtn.title = 'Delete transaction';
                 deleteBtn.onclick = async function() {
-                    await fetch(`/transactions/${txn.id}`, {
+                    await fetch(`/api/v1/transactions/${txn.id}`, {
                         method: 'DELETE',
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
@@ -528,7 +541,7 @@
                 return;
             }
 
-            const response = await fetch('/transactions', {
+            const response = await fetch('/api/v1/transactions', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -598,9 +611,45 @@
             }
         }
 
-        // load contacts and transactions when page first opens
+        // --- Groups ---
+
+        async function loadGroups() {
+            const response = await fetch('/api/v1/groups', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!response.ok) return;
+            const groups = await response.json();
+            const groupsList = document.getElementById('groups-list');
+
+            if (!groups.length) {
+                groupsList.innerHTML = '<p class="text-stone-400 text-sm col-span-full">No groups yet. <a href="/groups.html" class="text-brand-600 underline">Create one</a>.</p>';
+                return;
+            }
+
+            groupsList.innerHTML = '';
+            groups.forEach(group => {
+                const card = document.createElement('a');
+                card.href = `/groups.html?id=${group.id}`;
+                card.className = 'bg-white rounded-xl border border-stone-200 p-4 flex flex-col gap-2 hover:border-brand-400 transition-colors';
+
+                const icon = document.createElement('div');
+                icon.className = 'w-10 h-10 rounded-full bg-brand-100 text-brand-700 font-bold text-sm flex items-center justify-center';
+                icon.textContent = group.name.charAt(0).toUpperCase();
+
+                const name = document.createElement('p');
+                name.className = 'text-sm font-semibold text-stone-800 truncate';
+                name.textContent = group.name;
+
+                card.appendChild(icon);
+                card.appendChild(name);
+                groupsList.appendChild(card);
+            });
+        }
+
+        // load contacts, transactions, and groups when page first opens
         loadContacts();
         loadTransactions();
+        loadGroups();
     </script>
 </body>
 </html>
