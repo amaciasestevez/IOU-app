@@ -42,9 +42,10 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       scriptSrc: [
         "'self'",
-        "'unsafe-inline'",            // required for inline <script> in vanilla HTML pages
+        "'unsafe-inline'",
         "https://cdn.tailwindcss.com",
       ],
+      scriptSrcAttr: ["'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https:", "https://fonts.googleapis.com"],
       fontSrc:  ["'self'", "https:", "data:", "https://fonts.gstatic.com"],
       imgSrc:   ["'self'", "data:"],
