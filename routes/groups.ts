@@ -294,17 +294,28 @@ router.delete('/:id/members/:memberId', authenticateToken, async (req: Request, 
 // --- Group Expenses ---
 
 // GET /api/v1/groups/:id/expenses
+// GET /api/v1/groups/:id/expenses
 router.get('/:id/expenses', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const groupId = parseInt(String(req.params.id));
     const membership = await requireMember(req, res, groupId);
     if (!membership) return;
 
-    const result = await db.query<GroupExpense & { paid_by_username: string }>(
-      `SELECT ge.*, u.username AS paid_by_username
+    const result = await db.query<GroupExpense & { paid_by_username: string; splits: any[] }>(
+      `SELECT ge.*, u.username AS paid_by_username,
+        json_agg(json_build_object(
+          'id', ges.id,
+          'user_id', ges.user_id,
+          'username', u2.username,
+          'share_amount', ges.share_amount,
+          'is_paid', ges.is_paid
+        ) ORDER BY ges.id) AS splits
        FROM group_expenses ge
        JOIN users u ON ge.paid_by = u.id
+       JOIN group_expense_splits ges ON ges.expense_id = ge.id
+       JOIN users u2 ON u2.id = ges.user_id
        WHERE ge.group_id = $1
+       GROUP BY ge.id, u.username
        ORDER BY ge.created_at DESC`,
       [groupId]
     );

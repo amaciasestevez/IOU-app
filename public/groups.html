@@ -303,7 +303,6 @@
             const list = document.getElementById('group-members-list');
             list.innerHTML = '';
 
-            // Show "Add" button only for admins
             const isAdmin = members.some(m => m.user_id === currentUserId && m.role === 'admin');
             const addBtn = document.getElementById('add-member-btn');
             if (isAdmin) addBtn.classList.remove('hidden');
@@ -327,12 +326,37 @@
                 left.appendChild(avatar);
                 left.appendChild(name);
 
+                const right = document.createElement('div');
+                right.className = 'flex items-center gap-2';
+
                 const badge = document.createElement('span');
                 badge.className = `text-xs px-2 py-0.5 rounded-full ${m.role === 'admin' ? 'bg-brand-100 text-brand-700' : 'bg-stone-100 text-stone-500'}`;
                 badge.textContent = m.role;
+                right.appendChild(badge);
+
+                // admins can remove other members but not themselves
+                if (isAdmin && m.user_id !== currentUserId) {
+                    const removeBtn = document.createElement('button');
+                    removeBtn.className = 'text-xs text-stone-400 hover:text-red-500 transition';
+                    removeBtn.textContent = 'Remove';
+                    removeBtn.onclick = async function() {
+                        if (!confirm(`Remove ${m.username} from the group?`)) return;
+                        const res = await fetch(`/api/v1/groups/${groupId}/members/${m.user_id}`, {
+                            method: 'DELETE',
+                            headers: { Authorization: `Bearer ${token}` }
+                        });
+                        if (res.ok) {
+                            loadGroupDetail(groupId);
+                        } else {
+                            const data = await res.json();
+                            alert(data.message || 'Failed to remove member.');
+                        }
+                    };
+                    right.appendChild(removeBtn);
+                }
 
                 row.appendChild(left);
-                row.appendChild(badge);
+                row.appendChild(right);
                 list.appendChild(row);
             });
         }
@@ -350,8 +374,13 @@
 
             list.innerHTML = '';
             expenses.forEach(exp => {
+                const isPayer = exp.paid_by === currentUserId;
+
                 const row = document.createElement('div');
-                row.className = 'flex items-center justify-between px-5 py-4 border-b border-stone-100 last:border-b-0';
+                row.className = 'px-5 py-4 border-b border-stone-100 last:border-b-0';
+
+                const topRow = document.createElement('div');
+                topRow.className = 'flex items-center justify-between';
 
                 const info = document.createElement('div');
                 const desc = document.createElement('p');
@@ -363,12 +392,85 @@
                 info.appendChild(desc);
                 info.appendChild(meta);
 
-                const amount = document.createElement('span');
-                amount.className = 'text-sm font-semibold text-stone-800 ml-4 flex-shrink-0';
-                amount.textContent = `$${parseFloat(exp.amount).toFixed(2)}`;
+                const actions = document.createElement('div');
+                actions.className = 'flex items-center gap-3 ml-4 flex-shrink-0';
 
-                row.appendChild(info);
-                row.appendChild(amount);
+                const amount = document.createElement('span');
+                amount.className = 'text-sm font-semibold text-stone-800';
+                amount.textContent = `$${parseFloat(exp.amount).toFixed(2)}`;
+                actions.appendChild(amount);
+
+                // only the payer can delete an expense
+                if (isPayer) {
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'text-xs text-stone-400 hover:text-red-500 transition';
+                    deleteBtn.textContent = '✕';
+                    deleteBtn.title = 'Delete expense';
+                    deleteBtn.onclick = async function() {
+                        if (!confirm('Delete this expense? This cannot be undone.')) return;
+                        const res = await fetch(`/api/v1/groups/${currentGroupId}/expenses/${exp.id}`, {
+                            method: 'DELETE',
+                            headers: { Authorization: `Bearer ${token}` }
+                        });
+                        if (res.ok) {
+                            loadExpenses(currentGroupId);
+                            loadBalances(currentGroupId);
+                        } else {
+                            const data = await res.json();
+                            alert(data.message || 'Failed to delete expense.');
+                        }
+                    };
+                    actions.appendChild(deleteBtn);
+                }
+
+                topRow.appendChild(info);
+                topRow.appendChild(actions);
+                row.appendChild(topRow);
+
+                // show splits with settle button — only payer can settle someone else's split
+                if (exp.splits && exp.splits.length > 0) {
+                    const splitsDiv = document.createElement('div');
+                    splitsDiv.className = 'mt-3 space-y-1';
+
+                    exp.splits.forEach(split => {
+                        if (split.is_paid) return; // hide already settled splits
+
+                        const splitRow = document.createElement('div');
+                        splitRow.className = 'flex items-center justify-between text-xs text-stone-500 bg-stone-50 rounded-lg px-3 py-1.5';
+
+                        const splitText = document.createElement('span');
+                        splitText.textContent = `${split.username} owes $${parseFloat(split.share_amount).toFixed(2)}`;
+                        splitRow.appendChild(splitText);
+
+                        // only the payer can confirm they've been paid back
+                        if (isPayer && split.user_id !== currentUserId) {
+                            const settleBtn = document.createElement('button');
+                            settleBtn.className = 'text-xs px-2 py-0.5 bg-brand-50 text-brand-700 border border-brand-200 rounded hover:bg-brand-100 transition';
+                            settleBtn.textContent = 'Settled';
+                            settleBtn.onclick = async function() {
+                                const res = await fetch(`/api/v1/groups/${currentGroupId}/expenses/${exp.id}/splits/${split.id}`, {
+                                    method: 'PUT',
+                                    headers: { Authorization: `Bearer ${token}` }
+                                });
+                                if (res.ok) {
+                                    loadExpenses(currentGroupId);
+                                    loadBalances(currentGroupId);
+                                } else {
+                                    const data = await res.json();
+                                    alert(data.message || 'Failed to settle split.');
+                                }
+                            };
+                            splitRow.appendChild(settleBtn);
+                        }
+
+                        splitsDiv.appendChild(splitRow);
+                    });
+
+                    if (splitsDiv.children.length > 0) {
+                        row.appendChild(splitsDiv);
+                    }
+                }
+
                 list.appendChild(row);
             });
 
