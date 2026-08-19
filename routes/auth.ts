@@ -8,35 +8,52 @@ const router = Router();
 
 interface User {
   id: number;
-  username: string;
+  first_name: string;
+  last_name: string;
   email: string;
   password: string;
+}
+
+function handleUniqueViolation(err: any, res: Response): boolean {
+  if (err.code === '23505') {
+    if (err.constraint === 'users_email_lower_idx' || err.constraint === 'users_email_key') {
+      res.status(409).json({ message: 'An account with this email already exists' });
+    } else {
+      res.status(409).json({ message: 'Account already exists' });
+    }
+    return true;
+  }
+  return false;
 }
 
 // POST /api/v1/register
 router.post('/register', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { username, email, password }: Pick<User, 'username' | 'email' | 'password'> = req.body;
+    const { first_name, last_name, email, password }: Pick<User, 'first_name' | 'last_name' | 'email' | 'password'> = req.body;
 
-    if (!username || !email || !password) {
-      res.status(400).json({ message: 'Username, email and password are required' });
+    if (
+      !first_name || !last_name || !email || !password ||
+      first_name.trim() === '' || last_name.trim() === '' ||
+      email.trim() === '' || password.trim() === ''
+    ) {
+      res.status(400).json({ message: 'First name, last name, email and password are required' });
       return;
     }
 
+    if (password.length < 8) {
+      res.status(400).json({ message: 'Password must be at least 8 characters' });
+      return;
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
     const hashedPassword = await bcrypt.hash(password, 10);
-    const text = 'INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING id, username, email';
-    const result = await db.query<Omit<User, 'password'>>(text, [username, email, hashedPassword]);
+
+    const text = 'INSERT INTO users (first_name, last_name, email, password) VALUES ($1, $2, $3, $4) RETURNING id, first_name, last_name, email';
+    const result = await db.query<Omit<User, 'password'>>(text, [first_name.trim(), last_name.trim(), normalizedEmail, hashedPassword]);
 
     res.json({ message: 'Account created successfully!', user: result.rows[0] });
   } catch (err: any) {
-    if (err.code === '23505') {
-      if (err.constraint === 'users_email_key') {
-        res.status(409).json({ message: 'An account with this email already exists' });
-      } else {
-        res.status(409).json({ message: 'Username already taken' });
-      }
-      return;
-    }
+    if (handleUniqueViolation(err, res)) return;
     next(err);
   }
 });
@@ -44,42 +61,37 @@ router.post('/register', async (req: Request, res: Response, next: NextFunction)
 // POST /api/v1/login
 router.post('/login', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { username, password }: Pick<User, 'username' | 'password'> = req.body;
+    const { email, password }: Pick<User, 'email' | 'password'> = req.body;
 
-    if (!username || !password || username.trim() === '' || password.trim() === '') {
-      res.status(400).json({ message: 'Username and password are required' });
+    if (!email || !password || email.trim() === '' || password.trim() === '') {
+      res.status(400).json({ message: 'Email and password are required' });
       return;
     }
 
-    const result = await db.query<User>('SELECT * FROM users WHERE username = $1', [username]);
+    const normalizedEmail = email.trim().toLowerCase();
+    const result = await db.query<User>('SELECT * FROM users WHERE LOWER(email) = $1', [normalizedEmail]);
 
     if (result.rows.length === 0) {
-      res.status(401).json({ message: 'Invalid username or password' });
+      res.status(401).json({ message: 'Invalid email or password' });
       return;
     }
 
     const user = result.rows[0];
     const passwordMatch = await bcrypt.compare(password, user.password);
 
-    if (passwordMatch) {
-      const token = jwt.sign(
-        { id: user.id, username: user.username },
-        JWT_SECRET,
-        { expiresIn: '24h' }
-      );
-      res.json({ message: 'Login successful!', token, username: user.username });
-    } else {
-      res.status(401).json({ message: 'Invalid username or password' });
-    }
-  } catch (err: any) {
-    if (err.code === '23505') {
-      if (err.constraint === 'users_email_key') {
-        res.status(409).json({ message: 'An account with this email already exists' });
-      } else {
-        res.status(409).json({ message: 'Username already taken' });
-      }
+    if (!passwordMatch) {
+      res.status(401).json({ message: 'Invalid email or password' });
       return;
     }
+
+    const token = jwt.sign(
+      { id: user.id, first_name: user.first_name },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    res.json({ message: 'Login successful!', token, first_name: user.first_name, last_name: user.last_name });
+  } catch (err: any) {
+    if (handleUniqueViolation(err, res)) return;
     next(err);
   }
 });

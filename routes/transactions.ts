@@ -93,27 +93,17 @@ router.post('/', authenticateToken, async (req: Request, res: Response, next: Ne
   }
 });
 
-// PUT /api/v1/transactions/:id
-router.put('/:id', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const user_id = (req as any).user.id;
-    const { id } = req.params;
-    const result = await db.query<Transaction>(
-      'UPDATE transactions SET is_paid = true WHERE id = $1 AND user_id = $2 RETURNING *',
-      [id, user_id]
-    );
-    res.json(result.rows);
-  } catch (err) {
-    next(err);
-  }
-});
 
 // DELETE /api/v1/transactions/:id
 router.delete('/:id', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const user_id = (req as any).user.id;
     const { id } = req.params;
-    await db.query('DELETE FROM transactions WHERE id = $1 AND user_id = $2', [id, user_id]);
+    const result = await db.query('DELETE FROM transactions WHERE id = $1 AND user_id = $2', [id, user_id]);
+    if(result.rowCount === 0 ){
+      res.status(404).json({ message: 'Transaction not found'});
+      return;
+    }
     res.json({ message: 'Deleted successfully' });
   } catch (err) {
     next(err);
@@ -159,9 +149,18 @@ router.post('/:id/payments', authenticateToken, async (req: Request, res: Respon
       res.status(403).json({ message: 'Transaction not found' });
       return;
     }
+    const paidResult = await db.query<DebtResult>('SELECT SUM(amount) FROM payments WHERE transaction_id = $1',[id]);
+    const alreadyPaid = Number(paidResult.rows[0].sum || 0);
+    const newTotal = alreadyPaid + Number(amount)
+      if (newTotal > Number(txnCheck.rows[0].amount)) {
+        res.status(400).json({message: 'Payment exceeds remaining balance'})
+        return;
+      }
 
     const result = await db.query<Payment>('INSERT INTO payments (transaction_id, amount) VALUES ($1, $2) RETURNING *', [id, amount]);
-    res.json(result.rows[0]);
+    const paidCheck = newTotal === Number(txnCheck.rows[0].amount);
+    const paidUpdate = await db.query('UPDATE transactions SET is_paid = $3 WHERE id = $1 AND user_id = $2 RETURNING *', [id, user_id, paidCheck]);
+    res.json({ payment: result.rows[0], transaction: paidUpdate.rows[0] });
   } catch (err) {
     next(err);
   }

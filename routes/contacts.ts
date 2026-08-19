@@ -1,5 +1,7 @@
+// creates a mini express app that only handles routes
 import { Router, Request, Response, NextFunction } from 'express';
 import db from '../db';
+// every contact route requires a logged in user
 import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
@@ -15,6 +17,7 @@ interface Contact {
 }
 
 // GET /api/v1/contacts
+
 router.get('/', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const owner_id = (req as any).user.id;
@@ -53,6 +56,7 @@ router.delete('/:id', authenticateToken, async (req: Request, res: Response, nex
   try {
     const owner_id = (req as any).user.id;
     const { id } = req.params;
+    // two securtity checks: conatct id and owner_id
     await db.query('DELETE FROM contacts WHERE id = $1 AND owner_id = $2', [id, owner_id]);
     res.json({ message: 'Contact deleted successfully' });
   } catch (err) {

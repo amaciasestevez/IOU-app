@@ -328,8 +328,8 @@
         });
 
         const token = localStorage.getItem('token');
-        const username = localStorage.getItem('username');
-        document.getElementById('display-username').textContent = username;
+        const firstName = localStorage.getItem('first_name');
+        document.getElementById('display-username').textContent = firstName;
 
         function logout() {
             localStorage.removeItem('token');

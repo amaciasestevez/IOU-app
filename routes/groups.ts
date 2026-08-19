@@ -139,7 +139,7 @@ router.get('/:id', authenticateToken, async (req: Request, res: Response, next: 
     }
 
     const membersResult = await db.query<GroupMember & { username: string }>(
-      `SELECT gm.*, u.username FROM group_members gm
+      `SELECT gm.*, u.first_name AS username FROM group_members gm
        JOIN users u ON gm.user_id = u.id
        WHERE gm.group_id = $1
        ORDER BY gm.joined_at ASC`,
@@ -202,7 +202,7 @@ router.get('/:id/members', authenticateToken, async (req: Request, res: Response
     if (!membership) return;
 
     const result = await db.query<GroupMember & { username: string; email: string }>(
-      `SELECT gm.*, u.username, u.email FROM group_members gm
+      `SELECT gm.*, u.first_name AS username, u.email FROM group_members gm
        JOIN users u ON gm.user_id = u.id
        WHERE gm.group_id = $1
        ORDER BY gm.joined_at ASC`,
@@ -302,11 +302,11 @@ router.get('/:id/expenses', authenticateToken, async (req: Request, res: Respons
     if (!membership) return;
 
     const result = await db.query<GroupExpense & { paid_by_username: string; splits: any[] }>(
-      `SELECT ge.*, u.username AS paid_by_username,
+      `SELECT ge.*, u.first_name AS paid_by_username,
         json_agg(json_build_object(
           'id', ges.id,
           'user_id', ges.user_id,
-          'username', u2.username,
+          'username', u2.first_name,
           'share_amount', ges.share_amount,
           'is_paid', ges.is_paid
         ) ORDER BY ges.id) AS splits
@@ -315,7 +315,7 @@ router.get('/:id/expenses', authenticateToken, async (req: Request, res: Respons
        JOIN group_expense_splits ges ON ges.expense_id = ge.id
        JOIN users u2 ON u2.id = ges.user_id
        WHERE ge.group_id = $1
-       GROUP BY ge.id, u.username
+       GROUP BY ge.id, u.first_name
        ORDER BY ge.created_at DESC`,
       [groupId]
     );
@@ -390,7 +390,6 @@ router.post('/:id/expenses', authenticateToken, async (req: Request, res: Respon
         res.status(400).json({ message: `Split amounts must sum to total (got ${splitTotal.toFixed(2)}, expected ${totalAmount.toFixed(2)})` });
         return;
       }
-
       splitRows = splits.map((s: SplitInput) => ({
         user_id: s.user_id,
         share_amount: parseFloat(String(s.share_amount)),
@@ -415,7 +414,7 @@ router.post('/:id/expenses', authenticateToken, async (req: Request, res: Respon
 
     // Return the expense with its splits
     const splitsResult = await db.query<GroupExpenseSplit & { username: string }>(
-      `SELECT ges.*, u.username FROM group_expense_splits ges
+      `SELECT ges.*, u.first_name AS username FROM group_expense_splits ges
        JOIN users u ON ges.user_id = u.id
        WHERE ges.expense_id = $1`,
       [expense.id]
@@ -479,9 +478,9 @@ router.get('/:id/balances', authenticateToken, async (req: Request, res: Respons
     }>(
       `SELECT
          ges.user_id           AS debtor_id,
-         u_debtor.username     AS debtor_name,
+         u_debtor.first_name    AS debtor_name,
          ge.paid_by            AS creditor_id,
-         u_creditor.username   AS creditor_name,
+         u_creditor.first_name   AS creditor_name,
          ges.share_amount      AS amount
        FROM group_expenses ge
        JOIN group_expense_splits ges ON ge.id = ges.expense_id
