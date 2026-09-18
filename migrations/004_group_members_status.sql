@@ -1,1 +1,0 @@
-ALTER TABLE group_members ADD COLUMN IF NOT EXISTS status VARCHAR(10) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'invited'));
