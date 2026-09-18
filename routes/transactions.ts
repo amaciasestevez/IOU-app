@@ -16,6 +16,7 @@ interface Transaction {
   description: string;
   is_paid: boolean;
   contact_name?: string;
+  group_expense_split_id: number |null
 }
 
 interface Payment {
@@ -149,6 +150,11 @@ router.post('/:id/payments', authenticateToken, async (req: Request, res: Respon
       res.status(403).json({ message: 'Transaction not found' });
       return;
     }
+    if(txnCheck.rows[0].group_expense_split_id !== null){
+      res.status(400).json({message: 'Group expenses get settled in groups tab'});
+      return;
+    }
+
     const paidResult = await db.query<DebtResult>('SELECT SUM(amount) FROM payments WHERE transaction_id = $1',[id]);
     const alreadyPaid = Number(paidResult.rows[0].sum || 0);
     const newTotal = alreadyPaid + Number(amount)

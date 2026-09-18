@@ -74,6 +74,18 @@ async function requireAdmin(req: Request, res: Response, groupId: number): Promi
   return membership;
 }
 
+// looks up existing linked contact or inserts new contact
+async function findOrCreateLinkedContact(ownerId: number, otherUserId: number): Promise<number> {
+  const existingContact = await db.query('SELECT id FROM contacts WHERE owner_id = $1 AND linked_user_id = $2', [ownerId, otherUserId]);
+  if (existingContact.rows.length !== 0){
+    return existingContact.rows[0].id;
+  }
+  const otherUser = await db.query('SELECT first_name, last_name, email FROM users WHERE id = $1', [otherUserId]);
+  const name = otherUser.rows[0].first_name + ' ' + otherUser.rows[0].last_name;
+  const createdContact = await db.query('INSERT INTO contacts (owner_id, linked_user_id, name, email) VALUES ($1, $2, $3, $4) RETURNING id', [ownerId, otherUserId, name, otherUser.rows[0].email]);
+  return createdContact.rows[0].id
+}
+
 // --- Group CRUD ---
 
 // GET /api/v1/groups — list all groups the authenticated user belongs to
@@ -406,10 +418,17 @@ router.post('/:id/expenses', authenticateToken, async (req: Request, res: Respon
     // Insert splits (payer's own split is recorded as already paid)
     for (const split of splitRows) {
       const isPayer = split.user_id === paid_by;
-      await db.query(
-        'INSERT INTO group_expense_splits (expense_id, user_id, share_amount, is_paid, paid_at) VALUES ($1, $2, $3, $4, $5)',
+      const newSplit = await db.query(
+        'INSERT INTO group_expense_splits (expense_id, user_id, share_amount, is_paid, paid_at) VALUES ($1, $2, $3, $4, $5) RETURNING id',
         [expense.id, split.user_id, split.share_amount, isPayer, isPayer ? new Date().toISOString() : null]
+        
       );
+      if (isPayer === false){
+        const payerContactId =  await findOrCreateLinkedContact(paid_by, split.user_id);
+        const debtorContactId = await findOrCreateLinkedContact(split.user_id, paid_by);
+        const payerMatRow = await db.query('INSERT INTO transactions (user_id, contact_id, direction, amount, group_expense_split_id, description) VALUES ($1, $2, $3, $4, $5, $6)',[paid_by, payerContactId, 'i_lent', split.share_amount, newSplit.rows[0].id, 'Group expense' ]);
+        const debtorMatRow = await db.query('INSERT INTO transactions (user_id, contact_id, direction, amount, group_expense_split_id, description) VALUES ($1, $2, $3, $4, $5, $6)',[split.user_id, debtorContactId, 'i_borrowed', split.share_amount, newSplit.rows[0].id, 'Group expense' ])
+      }
     }
 
     // Return the expense with its splits
@@ -572,13 +591,24 @@ router.put('/:id/expenses/:expenseId/splits/:splitId', authenticateToken, async 
     }
 
     const result = await db.query<GroupExpenseSplit>(
-      'UPDATE group_expense_splits SET is_paid = true, paid_at = NOW() WHERE id = $1 AND expense_id = $2 RETURNING *',
+      'UPDATE group_expense_splits SET is_paid = true, paid_at = NOW() WHERE id = $1 AND expense_id = $2 AND is_paid = false RETURNING *',
       [splitId, expenseId]
     );
     if (result.rows.length === 0) {
-      res.status(404).json({ message: 'Split not found' });
+      res.status(404).json({ message: 'Split not found or already settled' });
       return;
     }
+    
+   await db.query(
+      `INSERT INTO payments (transaction_id, amount)
+      SELECT id, amount FROM transactions WHERE group_expense_split_id = $1`,
+      [splitId]
+    );
+
+    await db.query(
+      'UPDATE transactions SET is_paid = true WHERE group_expense_split_id = $1',
+      [splitId]
+    );
 
     res.json(result.rows[0]);
   } catch (err) {
